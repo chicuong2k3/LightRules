@@ -17,6 +17,7 @@ namespace LightRules.Generator
         public void Execute(GeneratorExecutionContext context)
         {
             var compilation = context.Compilation;
+
             // find the RuleAttribute symbol
             // Try to resolve attribute symbols; if not available, the generator will fall back to name-based matching.
             var ruleAttribute = compilation.GetTypeByMetadataName("LightRules.Attributes.RuleAttribute");
@@ -28,6 +29,7 @@ namespace LightRules.Generator
             var registryEntries = new List<string>();
 
             // iterate all syntax trees and find classes with [Rule]
+            int classCount = 0;
             foreach (var syntaxTree in compilation.SyntaxTrees)
             {
                 var semanticModel = compilation.GetSemanticModel(syntaxTree);
@@ -35,11 +37,13 @@ namespace LightRules.Generator
                 var classDecls = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
                 foreach (var cls in classDecls)
                 {
+                    classCount++;
                     var symbol = semanticModel.GetDeclaredSymbol(cls) as INamedTypeSymbol;
                     if (symbol == null) continue;
                     var attrs = symbol.GetAttributes();
                     // match rule attribute either by resolved symbol or by name
                     bool hasRuleAttr = attrs.Any(a => (a.AttributeClass != null && (a.AttributeClass.Name == "RuleAttribute" || a.AttributeClass.Name == "Rule")) || (ruleAttribute != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, ruleAttribute)));
+
                     if (!hasRuleAttr) continue;
 
                     // generate adapter source
@@ -182,8 +186,12 @@ namespace LightRules.Generator
                         }
 
                         var paramType = p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-                        // generate TryGetValue<T>("name", out var var)
-                        lines.Add($"if (!facts.TryGetValue<{paramType}>(\"{factNameLiteral}\", out var {pName})) throw new global::LightRules.Core.NoSuchFactException(\"No fact named '{factNameLiteral}' found\", \"{factNameLiteral}\");");
+                        var localVar = "__arg" + i;
+                        // generate TryGetValue<T>("name", out var __argN)
+                        lines.Add($"if (!facts.TryGetValue<{paramType}>(\"{factNameLiteral}\", out var {localVar})) throw new global::LightRules.Core.NoSuchFactException(\"No fact named '{factNameLiteral}' found\", \"{factNameLiteral}\");");
+                        // replace pName usage in argument list with localVar by mapping later
+                        // store mapping in a comment for readability (not used programmatically)
+                        // NOTE: BuildArgumentList will reference __arg{index} for fact params
                     }
                     else
                     {
@@ -206,7 +214,10 @@ namespace LightRules.Generator
                 var argsList = method.Parameters.Select((p, idx) =>
                 {
                     var has = p.GetAttributes().Any(a => (factAttr != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, factAttr)) || (a.AttributeClass != null && (a.AttributeClass.Name == "FactAttribute" || a.AttributeClass.Name == "Fact")));
-                    return has ? (p.Name ?? "arg" + idx) : "facts";
+                    if (!has) return "facts";
+                    // Add null-forgiving operator for reference types since we throw if TryGetValue fails
+                    var needsBang = p.Type.IsReferenceType && p.Type.NullableAnnotation != NullableAnnotation.Annotated;
+                    return "__arg" + idx + (needsBang ? "!" : "");
                 }).ToArray();
                 return string.Join(", ", argsList);
             }
