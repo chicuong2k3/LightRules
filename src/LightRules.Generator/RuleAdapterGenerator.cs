@@ -18,9 +18,8 @@ namespace LightRules.Generator
         {
             var compilation = context.Compilation;
             // find the RuleAttribute symbol
+            // Try to resolve attribute symbols; if not available, the generator will fall back to name-based matching.
             var ruleAttribute = compilation.GetTypeByMetadataName("LightRules.Attributes.RuleAttribute");
-            if (ruleAttribute == null) return;
-
             var conditionAttr = compilation.GetTypeByMetadataName("LightRules.Attributes.ConditionAttribute");
             var actionAttr = compilation.GetTypeByMetadataName("LightRules.Attributes.ActionAttribute");
             var factAttr = compilation.GetTypeByMetadataName("LightRules.Attributes.FactAttribute");
@@ -39,11 +38,30 @@ namespace LightRules.Generator
                     var symbol = semanticModel.GetDeclaredSymbol(cls) as INamedTypeSymbol;
                     if (symbol == null) continue;
                     var attrs = symbol.GetAttributes();
-                    if (!attrs.Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, ruleAttribute))) continue;
+                    // match rule attribute either by resolved symbol or by name
+                    bool hasRuleAttr = attrs.Any(a => (a.AttributeClass != null && (a.AttributeClass.Name == "RuleAttribute" || a.AttributeClass.Name == "Rule")) || (ruleAttribute != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, ruleAttribute)));
+                    if (!hasRuleAttr) continue;
 
                     // generate adapter source
-                    var generated = GenerateAdapterFor(symbol, conditionAttr, actionAttr, factAttr, priorityAttr, context);
-                    context.AddSource(symbol.Name + "_RuleAdapter.g.cs", generated);
+                    string generated = null;
+                    try
+                    {
+                        generated = GenerateAdapterFor(symbol, conditionAttr, actionAttr, factAttr, priorityAttr, context);
+                        if (string.IsNullOrWhiteSpace(generated))
+                        {
+                            // nothing to generate for this type (e.g., no condition found)
+                            continue;
+                        }
+                        var fileName = (symbol.ContainingNamespace.IsGlobalNamespace ? "" : symbol.ContainingNamespace.ToDisplayString() + ".") + symbol.Name + "_RuleAdapter.g.cs";
+                        // replace invalid chars for file name
+                        fileName = fileName.Replace('<', '_').Replace('>', '_').Replace('`', '_').Replace(' ', '_');
+                        context.AddSource(fileName, generated);
+                    }
+                    catch (Exception ex)
+                    {
+                        var diag = Diagnostic.Create(new DiagnosticDescriptor("LRGGEN001", "Generator error", $"RuleAdapterGenerator failed for '{symbol.Name}': {ex.Message}", "LightRules.Generator", DiagnosticSeverity.Error, true), Location.None);
+                        context.ReportDiagnostic(diag);
+                    }
 
                     // produce a RuleMetadata entry using the generated adapter type
                     var adapterFullName = (symbol.ContainingNamespace.IsGlobalNamespace ? "" : symbol.ContainingNamespace.ToDisplayString() + ".") + symbol.Name + "_RuleAdapter";
@@ -67,7 +85,7 @@ namespace LightRules.Generator
                     var nameExpr = nameLiteral != null ? "\"" + nameLiteral.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"" : "null";
                     var descExpr = descriptionLiteral != null ? "\"" + descriptionLiteral.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"" : "null";
                     var prioExpr = priorityLiteral != int.MinValue ? priorityLiteral.ToString() : "IRule.DefaultPriority";
-                    registryEntries.Add($"new LightRules.Discovery.RuleMetadata(typeof({adapterFullName}), {nameExpr}, {descExpr}, {prioExpr}, true, new string[0])");
+                    registryEntries.Add($"new LightRules.Discovery.RuleMetadata(typeof(global::{adapterFullName}), {nameExpr}, {descExpr}, {prioExpr}, true, new string[0])");
                 }
             }
 
@@ -85,14 +103,15 @@ namespace LightRules.Generator
 
             // find condition method
             var methods = symbol.GetMembers().OfType<IMethodSymbol>().Where(m => m.MethodKind == MethodKind.Ordinary).ToList();
-            var condition = methods.FirstOrDefault(m => m.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, conditionAttr)));
+            // find condition method (match by symbol when available, else by attribute name)
+            var condition = methods.FirstOrDefault(m => m.GetAttributes().Any(a => (conditionAttr != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, conditionAttr)) || (a.AttributeClass != null && (a.AttributeClass.Name == "ConditionAttribute" || a.AttributeClass.Name == "Condition"))));
             if (condition == null)
             {
                 // generator cannot produce adapter without condition
                 return string.Empty;
             }
 
-            var actionMethods = methods.Where(m => m.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, actionAttr))).ToList();
+            var actionMethods = methods.Where(m => m.GetAttributes().Any(a => (actionAttr != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, actionAttr)) || (a.AttributeClass != null && (a.AttributeClass.Name == "ActionAttribute" || a.AttributeClass.Name == "Action")))).ToList();
             // order by ActionAttribute.Order where possible
             var orderedActions = actionMethods.Select(m => new
             {
@@ -100,7 +119,7 @@ namespace LightRules.Generator
                 Order = GetActionOrder(m)
             }).OrderBy(x => x.Order).Select(x => x.Method).ToList();
 
-            var priorityMethod = methods.FirstOrDefault(m => m.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, priorityAttr)));
+            var priorityMethod = methods.FirstOrDefault(m => m.GetAttributes().Any(a => (priorityAttr != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, priorityAttr)) || (a.AttributeClass != null && (a.AttributeClass.Name == "PriorityAttribute" || a.AttributeClass.Name == "Priority"))));
 
             // extract RuleAttribute name/description/priority if present
             var ruleAttr = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.Name == "RuleAttribute");
@@ -146,21 +165,25 @@ namespace LightRules.Generator
                 {
                     var p = method.Parameters[i];
                     var pName = p.Name ?? "arg" + i;
-                    var hasFact = p.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, factAttr));
+                    var hasFact = p.GetAttributes().Any(a => (factAttr != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, factAttr)) || (a.AttributeClass != null && (a.AttributeClass.Name == "FactAttribute" || a.AttributeClass.Name == "Fact")));
                     if (hasFact)
                     {
-                        // find attribute value
-                        var attr = p.GetAttributes().First(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, factAttr));
-                        string factNameLiteral = pName;
-                        if (attr.ConstructorArguments.Length == 1)
+                        // find attribute value (match by symbol when possible, else by attribute name)
+                        AttributeData attr = null;
+                        foreach (var a in p.GetAttributes())
                         {
-                            var val = attr.ConstructorArguments[0].Value as string;
-                            if (!string.IsNullOrEmpty(val)) factNameLiteral = val;
+                            if (factAttr != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, factAttr)) { attr = a; break; }
+                            if (a.AttributeClass != null && (a.AttributeClass.Name == "FactAttribute" || a.AttributeClass.Name == "Fact")) { attr = a; break; }
+                        }
+                        string factNameLiteral = pName;
+                        if (attr != null && attr.ConstructorArguments.Length == 1 && attr.ConstructorArguments[0].Value is string sval && !string.IsNullOrEmpty(sval))
+                        {
+                            factNameLiteral = sval;
                         }
 
                         var paramType = p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
                         // generate TryGetValue<T>("name", out var var)
-                        lines.Add($"if (!facts.TryGetValue<{paramType}>(\"{factNameLiteral}\", out var {pName})) throw new LightRules.Core.NoSuchFactException(\"No fact named '{factNameLiteral}' found\", \"{factNameLiteral}\");");
+                        lines.Add($"if (!facts.TryGetValue<{paramType}>(\"{factNameLiteral}\", out var {pName})) throw new global::LightRules.Core.NoSuchFactException(\"No fact named '{factNameLiteral}' found\", \"{factNameLiteral}\");");
                     }
                     else
                     {
@@ -180,7 +203,11 @@ namespace LightRules.Generator
 
             string BuildArgumentList(IMethodSymbol method)
             {
-                var argsList = method.Parameters.Select((p, idx) => p.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, factAttr)) ? (p.Name ?? "arg" + idx) : "facts").ToArray();
+                var argsList = method.Parameters.Select((p, idx) =>
+                {
+                    var has = p.GetAttributes().Any(a => (factAttr != null && SymbolEqualityComparer.Default.Equals(a.AttributeClass, factAttr)) || (a.AttributeClass != null && (a.AttributeClass.Name == "FactAttribute" || a.AttributeClass.Name == "Fact")));
+                    return has ? (p.Name ?? "arg" + idx) : "facts";
+                }).ToArray();
                 return string.Join(", ", argsList);
             }
 
