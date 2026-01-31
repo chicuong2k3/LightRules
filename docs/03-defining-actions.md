@@ -72,7 +72,7 @@ The engine is responsible for resolving parameters before calling the method. Fo
 
 - Keep actions small: Prefer composable, single-responsibility actions. This makes testing and ordering simpler.
 - Be explicit about side effects: Document what state the action changes (facts, external systems). Avoid hidden global side effects.
-- Idempotence: When actions interact with external systems, design them to be idempotent where possible — repeated execution should not cause incorrect duplicate effects.
+- Idempotence: When actions interact with external systems, design them to be idempotent where possible  repeated execution should not cause incorrect duplicate effects.
 - Error handling: Catch and handle expected exceptions inside the action. Use structured logging and consider retry/backoff strategies outside of the rule engine unless the engine integrates retries.
 - Mutating facts: If you mutate facts in an action, understand the effect on subsequent rules. If you need isolation, either clone the `Facts` instance beforehand or ensure the executor snapshots facts.
 
@@ -127,7 +127,7 @@ Note: The actual `Order` attribute and enforcement may vary depending on the rul
 
 ## Troubleshooting / FAQ
 
-Q: My action throws — what happens?
+Q: My action throws  what happens?
 A: Engine behavior is implementation-specific. Common policies: propagate the exception, log and continue, or stop rule execution. Review your executor or add a wrapper action that handles exceptions.
 
 Q: Can actions run asynchronously?
@@ -138,6 +138,6 @@ A: It's common but consider abstraction and testability. Prefer injecting servic
 
 ## Where to look next
 
-- `docs/defining-facts.md` — how facts are stored and accessed.
-- `docs/defining-conditions.md` — guides for writing conditions.
-- `docs/defining-rules.md` — how to combine conditions and actions into rules and how discovery works.
+- `docs/defining-facts.md`  how facts are stored and accessed.
+- `docs/defining-conditions.md`  guides for writing conditions.
+- `docs/defining-rules.md`  how to combine conditions and actions into rules and how discovery works.

@@ -134,7 +134,7 @@ Q: "What happens if I try to get a fact with the wrong type?"
 A: `Get<T>` attempts a cast and will throw an exception if the stored runtime value is not assignable to `T`. Use `TryGetValue<T>` to safely test and retrieve typed values.
 
 Q: "Is the fact name comparison case-sensitive?"
-A: Yes — `Facts` uses an ordinal (case-sensitive) comparison when matching names. Be consistent with your fact naming.
+A: Yes  `Facts` uses an ordinal (case-sensitive) comparison when matching names. Be consistent with your fact naming.
 
 ## Where to look next
 

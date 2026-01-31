@@ -19,11 +19,11 @@ How it works (high-level)
 
 Attributes
 
-- `[Rule(Name = "MyRule", Description = "...")]` — mark a class as a rule. `Name` and `Description` are optional.
-- `[Condition]` — annotate a single method that returns `bool` (the rule condition).
-- `[Action(Order = 1)]` — annotate one or more `void` methods to execute when the condition is true. `Order` controls execution order; the default is 0.
-- `[Fact("factName")]` — annotate a method parameter to indicate which fact name to inject; if omitted, the parameter name is used.
-- `[Priority]` — optional method returning `int` to compute priority dynamically.
+- `[Rule(Name = "MyRule", Description = "...")]`  mark a class as a rule. `Name` and `Description` are optional.
+- `[Condition]`  annotate a single method that returns `bool` (the rule condition).
+- `[Action(Order = 1)]`  annotate one or more `void` methods to execute when the condition is true. `Order` controls execution order; the default is 0.
+- `[Fact("factName")]`  annotate a method parameter to indicate which fact name to inject; if omitted, the parameter name is used.
+- `[Priority]`  optional method returning `int` to compute priority dynamically.
 
 Example POCO rule
 
@@ -50,8 +50,8 @@ public class HighValueOrderRule
 What the generator emits (conceptual)
 
 - `HighValueOrderRule_RuleAdapter : IRule` with direct calls:
-  - `bool Evaluate(Facts facts)` — binds `total` using `facts.TryGetValue<decimal>("orderTotal", out var total)` and calls `_target.IsHighValue(total)`.
-  - `void Execute(Facts facts)` — binds `id` and calls `_target.ApplyDiscount(id)`.
+  - `bool Evaluate(Facts facts)`  binds `total` using `facts.TryGetValue<decimal>("orderTotal", out var total)` and calls `_target.IsHighValue(total)`.
+  - `void Execute(Facts facts)`  binds `id` and calls `_target.ApplyDiscount(id)`.
   - `string Name { get; }` and other metadata.
 
 Discovery and registration
@@ -86,7 +86,7 @@ Migration notes
 Tips & caveats
 
 - The generator emits warnings for unsupported parameter shapes. Keep rule method signatures simple: parameters should either be annotated with `[Fact]` or be a single `Facts` parameter.
-- Generated adapters are ordinary C# code — you can view them in your IDE under the generated sources node or in build artifacts.
+- Generated adapters are ordinary C# code  you can view them in your IDE under the generated sources node or in build artifacts.
 
 Next steps / Extensions
 

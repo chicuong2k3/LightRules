@@ -20,7 +20,7 @@ Key methods
 
 - `BeforeEvaluate(Rules rules, Facts facts)`
   - Called once before the engine evaluates the provided `rules` against the supplied `facts`.
-  - For iterative engines (e.g., inference engines that repeatedly select candidate rules), this method may be called multiple times — once for each candidate set or iteration. Check your concrete engine's documentation if you rely on the call frequency.
+  - For iterative engines (e.g., inference engines that repeatedly select candidate rules), this method may be called multiple times  once for each candidate set or iteration. Check your concrete engine's documentation if you rely on the call frequency.
   - Use this method to prepare or validate facts, start timers, create a correlation context for logs, or short-circuit external resources used during execution.
 
 - `AfterExecute(Rules rules, Facts facts)`
@@ -74,5 +74,5 @@ When to use engine listeners
 
 See also
 
-- `docs/defining-rules-engine.md` — engine parameters and general engine usage.
-- `docs/defining-rules-listener.md` — per-rule listeners (`IRuleListener`) for fine-grained rule-level events.
+- `docs/defining-rules-engine.md`  engine parameters and general engine usage.
+- `docs/defining-rules-listener.md`  per-rule listeners (`IRuleListener`) for fine-grained rule-level events.

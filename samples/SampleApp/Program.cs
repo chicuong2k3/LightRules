@@ -7,6 +7,8 @@ class Program
 {
     static void Main()
     {
+        Console.WriteLine("LightRules sample: attribute-based discovery + engine run\n");
+
         // Discover rules using the generated registry
         var metas = RuleDiscovery.Discover().ToList();
         Console.WriteLine($"Discovered {metas.Count} rule metadata entries.");
@@ -18,29 +20,28 @@ class Program
             return;
         }
 
-        // Instantiate adapters by creating the original POCO and passing it to the adapter's ctor
+        // Instantiate adapters by creating the original POCO and passing it to the adapter's ctor when possible
         var rules = new System.Collections.Generic.List<IRule>();
         foreach (var meta in metas)
         {
             var adapterType = meta.RuleType;
-            Console.WriteLine($"Adapter type: {adapterType.FullName}");
+            Console.WriteLine($"\nAdapter type: {adapterType.FullName}");
 
-            // derive the POCO type name by removing the suffix
+            // Try to locate a matching POCO type (the generator typically emits an adapter named {PocoType}_RuleAdapter)
             string adapterName = adapterType.FullName!;
             string pocoTypeName = adapterName.Replace("_RuleAdapter", "");
-            Console.WriteLine($"Expecting POCO type: {pocoTypeName}");
 
             Type? pocoType = Type.GetType(pocoTypeName) ?? AppDomain.CurrentDomain.GetAssemblies()
                 .SelectMany(a => a.GetTypes())
                 .FirstOrDefault(t => (t.FullName ?? string.Empty) == pocoTypeName);
 
-            if (pocoType == null)
+            if (pocoType != null)
             {
-                Console.WriteLine($"POCO type not found in loaded assemblies: {pocoTypeName}");
+                Console.WriteLine($"Found POCO type: {pocoType.FullName}");
             }
             else
             {
-                Console.WriteLine($"Found POCO type: {pocoType.FullName}");
+                Console.WriteLine($"POCO type not found in loaded assemblies: {pocoTypeName}");
             }
 
             object? pocoInstance = null;
@@ -63,11 +64,13 @@ class Program
                 if (pocoInstance != null)
                 {
                     adapterInstance = Activator.CreateInstance(adapterType, pocoInstance);
+                    Console.WriteLine($"Instantiated adapter using POCO constructor: {adapterType.FullName}");
                 }
                 else
                 {
                     // try parameterless adapter ctor as fallback
                     adapterInstance = Activator.CreateInstance(adapterType);
+                    Console.WriteLine($"Instantiated adapter using parameterless constructor: {adapterType.FullName}");
                 }
             }
             catch (Exception ex)
@@ -77,7 +80,6 @@ class Program
 
             if (adapterInstance is IRule ir)
             {
-                Console.WriteLine($"Adapter instantiated: {adapterType.FullName}");
                 rules.Add(ir);
             }
             else
@@ -86,17 +88,20 @@ class Program
             }
         }
 
-        Console.WriteLine($"Instantiated {rules.Count} IRule instances.");
+        Console.WriteLine($"\nInstantiated {rules.Count} IRule instances.\n");
 
         var facts = new Facts();
         facts.Set("orderTotal", 1500m);
         facts.Set("orderId", "ORD-123");
+
+        Console.WriteLine("Facts before running rules: " + facts);
 
         var rulesCollection = new Rules(rules);
         var engine = new DefaultRulesEngine();
 
         engine.Fire(rulesCollection, facts);
 
-        Console.WriteLine("Finished running sample rules.");
+        Console.WriteLine("\nFacts after running rules: " + facts);
+        Console.WriteLine("\nFinished running sample rules.");
     }
 }
