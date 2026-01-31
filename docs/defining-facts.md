@@ -23,7 +23,7 @@ Key behavior and API (summary):
 - Indexer: `facts["name"]` gets or sets a fact value as `object?`. Setting the indexer to `null` removes the fact.
 - Set: `Set<T>(string name, T value)` adds or replaces a `Fact<T>` (throws if `value` is null).
 - Add: `Add(Fact)` / `Add<T>(Fact<T>)` add facts; existing facts with the same name are replaced.
-- Get<T>: `Get<T>(string name)` returns `default(T)` if the fact does not exist, or casts and returns the value if present.
+- Get<T>: `Get<T>(string name)` returns `default(T)` if the fact does not exist; if the fact exists it casts the stored runtime value to `T` and returns it (an invalid cast will throw at runtime).
 - TryGetValue<T>: `TryGetValue<T>(string name, out T? value)` returns `true` only when the fact exists and its runtime value is assignable to `T`.
 - GetFact / TryGetFact: access the raw `Fact` object stored in the collection.
 - TryGetFact<T>: attempt to retrieve a `Fact<T>`; if the stored fact is non-generic but its value is assignable to `T`, a typed copy is returned.
@@ -131,7 +131,10 @@ Q: "Can two facts have the same name?"
 A: No. Within a single `Facts` instance, names are unique. Adding a fact with an existing name replaces the previous fact.
 
 Q: "What happens if I try to get a fact with the wrong type?"
-A: `Get<T>` attempts a cast and will throw or produce an invalid cast if the stored runtime value is not assignable to `T`. Use `TryGetValue<T>` to safely test and retrieve typed values.
+A: `Get<T>` attempts a cast and will throw an exception if the stored runtime value is not assignable to `T`. Use `TryGetValue<T>` to safely test and retrieve typed values.
+
+Q: "Is the fact name comparison case-sensitive?"
+A: Yes — `Facts` uses an ordinal (case-sensitive) comparison when matching names. Be consistent with your fact naming.
 
 ## Where to look next
 

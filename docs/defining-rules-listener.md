@@ -80,7 +80,10 @@ Registering rule listeners
 
 ```csharp
 var engine = new DefaultRulesEngine();
+// register a single listener
 engine.RegisterRuleListener(new MetricsRuleListener());
+// or register multiple listeners at once
+engine.RegisterRuleListeners(new[] { new MetricsRuleListener(), new AnotherListener() });
 ```
 
 Best practices

@@ -76,7 +76,7 @@ Important: attributes only declare intent. The source generator consumes the att
 
 LightRules provides a simple discovery helper:
 
-- `RuleDiscovery.Discover(Assembly)` scans the assembly for non-abstract exported types decorated with `RuleAttribute` that implement `IRule`, and returns an ordered list of `RuleMetadata` objects.
+- `RuleDiscovery.Discover()` scans the assemblies loaded into the current process (the same assemblies the generator emitted `LightRules.Generated.RuleRegistry` into) and returns an ordered list of `RuleMetadata` objects describing generated adapters.
 
 `RuleMetadata` includes:
 - `Type RuleType`
@@ -88,13 +88,15 @@ LightRules provides a simple discovery helper:
 
 `RuleDiscovery` orders results by priority. Discovery is metadata-only: you still need an injector (or the engine) to create instances, bind method parameters from `Facts`, and invoke condition/action methods.
 
+> Note: `RuleDiscovery.Discover()` does not construct adapter instances; it returns `RuleMetadata` values that point to the generated adapter types (for example `MyRule_RuleAdapter`). The adapter constructors may vary (parameterless or accepting the original POCO). A robust injector should try creating an adapter by passing the POCO and fall back to a parameterless constructor.
+
 ### BasicRule, DefaultRule and Rules (programmatic helpers)
 
 - `BasicRule` — a small base implementation of `IRule` that provides `Name`, `Description`, `Priority`, and default no-op `Evaluate` / `Execute` implementations. Extend it when you want a simple rule base class.
 
 - `DefaultRule` — a convenient rule implementation that wraps an `ICondition` and a list of `IAction`. It evaluates the condition and runs all actions in order when the condition is true.
 
-- `Rules` — a collection that holds and orders rules. Rules are ordered by `Priority` (ascending) and then by `Name` (ordinal). `Rules` provides registration and unregistration helpers.
+- `Rules` — a collection that holds and orders rules. Rules are ordered by `Priority` (ascending) and then by `Name` (ordinal, case-insensitive). `Rules` provides registration and unregistration helpers.
 
 ## Examples
 
@@ -102,7 +104,7 @@ LightRules provides a simple discovery helper:
 
 ```csharp
 using LightRules.Attributes;
-using LightRules.Abstractions;
+using LightRules.Core;
 
 [Rule("OrderPositiveRule", Priority = 10, Description = "Fires when order quantity is positive", Enabled = true, Tags = new[] { "orders", "validation" })]
 public class OrderPositiveRule : IRule
@@ -152,16 +154,26 @@ var rules = new Rules(rule);
 Below is a tiny example to illustrate how a discovery+injector could work. It's intentionally simple — production injectors should handle conversions, missing facts, optional parameters, and errors.
 
 ```csharp
-// Discover rule metadata
-var metas = RuleDiscovery.Discover(typeof(OrderPositiveRule).Assembly);
+// Discover rule metadata across loaded assemblies
+var metas = RuleDiscovery.Discover();
 
 // Instantiate and bind rule adapter instances (very small example)
-// The generator produces adapter types (e.g. MyRule_RuleAdapter). Use the registry to create adapter instances.
+// The generator produces adapter types (e.g. MyRule_RuleAdapter). Use the metadata to create adapter instances.
 var ruleInstances = new List<IRule>();
 foreach (var meta in metas)
 {
-    // meta.RuleType is the generated adapter type; ensure it has a public constructor that accepts the original POCO
-    var instance = (IRule)Activator.CreateInstance(meta.RuleType)!; // generated adapters are compiled into the assembly
+    // meta.RuleType is the generated adapter type; adapter constructors may accept the original POCO or be parameterless.
+    IRule instance;
+    try
+    {
+        // try constructor that accepts the original POCO (if you have it)
+        instance = (IRule)Activator.CreateInstance(meta.RuleType /*, pocoInstance */)!;
+    }
+    catch
+    {
+        // fallback to parameterless constructor
+        instance = (IRule)Activator.CreateInstance(meta.RuleType)!;
+    }
     ruleInstances.Add(instance);
 }
 
@@ -183,7 +195,7 @@ foreach (var r in rulesCollection)
 
 - Prefer `Facts.TryGetValue<T>` when reading facts in conditions to avoid invalid cast exceptions.
 - Keep conditions side-effect free. Actions are the place to mutate facts or call external systems.
-- Mutating `Facts` inside actions affects subsequent rules in the same run unless the engine snapshots facts.
+- Mutating `Facts` inside actions affects subsequent rules in the same run — LightRules engines do not snapshot facts by default. If you need isolation, clone the `Facts` instance before firing rules or use a custom executor.
 - Use `ActionAttribute(Order = n)` to express action ordering when multiple methods exist on a rule (discovery/invoker must respect this).
 - Use `RuleDiscovery` for simple discovery; if you need method/parameter binding create or reuse a small injector that reads attributes and invokes methods.
 

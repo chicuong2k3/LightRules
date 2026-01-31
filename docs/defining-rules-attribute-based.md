@@ -59,6 +59,25 @@ Discovery and registration
 - The generator also produces a registry `LightRules.Generated.RuleRegistry.All` (an array of `RuleMetadata`).
 - Use `RuleDiscovery.Discover()` to get `RuleMetadata` entries and register the generated adapters (the engine code expects `IRule` instances).
 
+Adapter constructor note
+
+Generated adapters are normal C# types. Their constructors may vary depending on generator behavior (some adapters expose a parameterless constructor, others accept the original POCO instance). A practical injector should attempt to instantiate an adapter using the original POCO (if available) and fall back to a parameterless constructor. Example strategy:
+
+```csharp
+IRule CreateAdapter(Type adapterType, object? poco = null)
+{
+    try
+    {
+        if (poco != null)
+        {
+            return (IRule)Activator.CreateInstance(adapterType, poco)!;
+        }
+    }
+    catch { }
+    return (IRule)Activator.CreateInstance(adapterType)!;
+}
+```
+
 Migration notes
 
 - The codebase no longer uses runtime reflection or dynamic proxies for attribute-based rules. Make sure your POCO rule classes are compiled in the same project (or in a project that has the source generator enabled) so the adapter will be generated.

@@ -26,9 +26,9 @@ must be executed.
 
 The `Conditions` static class provides three useful helpers:
 
-- `Conditions.True`: a condition that always returns `true`.
-- `Conditions.False`: a condition that always returns `false`.
-- `Conditions.From(Func<Facts,bool>)`: create an `ICondition` from a delegate.
+- `Conditions.True` — a condition that always returns `true`.
+- `Conditions.False` — a condition that always returns `false`.
+- `Conditions.From(Func<Facts,bool>)` — create an `ICondition` from a delegate.
 
 These are convenient when you need a simple condition or want to provide a lambda 
 instead of implementing a class.
@@ -66,7 +66,7 @@ Or you can use `Conditions.From` with a lambda for concise one-off conditions.
 - Read-only intent: Although the `Facts` object can be mutated, prefer not to mutate it from inside `Evaluate`. 
 Mutating facts during evaluation may change the outcome of other conditions or rules and makes reasoning about execution order harder.
 - Null & missing facts: Use `TryGetValue<T>` when a fact might be absent or have a different runtime type. 
-`Get<T>` can throw or return `default(T)` depending on usage; prefer `Try*` patterns in conditions.
+`Get<T>` will cast the stored value and may throw if the runtime type does not match; prefer `Try*` patterns in conditions.
 - Performance: Keep evaluations cheap — they are executed frequently. Avoid blocking IO or expensive computation in `Evaluate`.
 - Exceptions: If a condition throws an exception, the engine's behavior depends on its implementation. 
 When possible, handle expected error cases inside the condition and return `false`.
@@ -141,5 +141,4 @@ A: Use `TryGetValue<T>` to safely test and retrieve a typed value. Do not rely o
 ## Where to look next
 
 - `docs/defining-facts.md` — how facts are stored and accessed.
-- `docs/defining-actions.md` — actions executed when conditions evaluate to true (if present or to be created).
 - `docs/defining-rules.md` — how conditions and actions are combined into rules.

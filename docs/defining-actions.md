@@ -8,7 +8,7 @@ and assumes no prior knowledge of rule engines.
 An Action is the piece of code executed when a rule fires (i.e., when its condition evaluated to `true`). 
 Actions perform work such as changing facts, triggering side-effects (logging, sending messages, updating data stores), or invoking other services.
 
-In LightRules the Action abstraction is represented by the `IAction` interface and the `Action` delegate helper:
+In LightRules the Action abstraction is represented by the `IAction` interface and the `Actions` static helper:
 
 ```csharp
 public interface IAction

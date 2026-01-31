@@ -50,7 +50,10 @@ If you use `DefaultRulesEngine` or `InferenceRulesEngine` (both inherit from `Ab
 
 ```csharp
 var engine = new DefaultRulesEngine(parameters);
+// single listener
 engine.RegisterRulesEngineListener(new SimpleEngineListener());
+// register multiple listeners at once
+engine.RegisterRulesEngineListeners(new[] { new SimpleEngineListener(), new AnotherListener() });
 ```
 
 Multiple listeners can be registered; the engine will invoke each in registration order.
