@@ -128,7 +128,7 @@ public class OrderPositiveRule
     [Action(Order = 1)]
     public Facts OnSuccess(Facts facts)
     {
-        return facts.Set("orderAccepted", true);
+        return facts.AddOrReplaceFact("orderAccepted", true);
     }
 }
 // The source generator produces OrderPositiveRule_RuleAdapter implementing IRule
@@ -137,53 +137,36 @@ public class OrderPositiveRule
 2) Programmatic rule using `DefaultRule`
 
 ```csharp
-var condition = Conditions.From(f => f.TryGetValue<int>("quantity", out var q) && q > 0);
-var actions = new List<IAction> { Actions.From(f => f.Set("orderAccepted", true)) };
+var condition = Conditions.From(f => f.TryGetFactValue<int>("quantity", out var q) && q > 0);
+var actions = new List<IAction> { Actions.From(f => f.AddOrReplaceFact("orderAccepted", true)) };
 var rule = new DefaultRule("OrderPositiveRule", "Fires when order quantity is positive", 10, condition, actions);
 
 var rules = new Rules(rule);
 ```
 
-### Simple injector snippet
+### Discovery and instantiation
 
-Below is a tiny example to illustrate how a discovery+injector could work. It's intentionally simple - production injectors should handle conversions, missing facts, optional parameters, and errors.
+Rules are automatically registered via `ModuleInitializer` when their assembly loads. Use `RuleDiscovery.Discover()` and `CreateInstance()` to create rule instances without reflection:
 
 ```csharp
-// Discover rule metadata across loaded assemblies
+// Discover rule metadata (auto-registered via ModuleInitializer)
 var metas = RuleDiscovery.Discover();
 
-// Instantiate and bind rule adapter instances
-var ruleInstances = new List<IRule>();
+// Create rule instances using factory - no reflection required!
+var rules = new Rules();
 foreach (var meta in metas)
 {
-    IRule instance;
-    try
-    {
-        // try constructor that accepts the original POCO (if you have it)
-        instance = (IRule)Activator.CreateInstance(meta.RuleType /*, pocoInstance */)!;
-    }
-    catch
-    {
-        // fallback to parameterless constructor
-        instance = (IRule)Activator.CreateInstance(meta.RuleType)!;
-    }
-    ruleInstances.Add(instance);
+    var instance = meta.CreateInstance();
+    rules.Register(instance);
 }
 
-// Evaluate/execute loop with Facts (functional style)
+// Create facts and run the engine
 var facts = new Facts();
-facts = facts.Set("quantity", 5);
+facts = facts.AddOrReplaceFact("quantity", 5);
 
-var rulesCollection = new Rules(ruleInstances);
-var currentFacts = facts;
-foreach (var r in rulesCollection)
-{
-    if (r.Evaluate(currentFacts))
-    {
-        currentFacts = r.Execute(currentFacts);
-    }
-}
-// currentFacts now contains all updates made by executed rules
+var engine = new DefaultRulesEngine();
+var finalFacts = engine.Fire(rules, facts);
+// finalFacts now contains all updates made by executed rules
 ```
 
 ## Async Rules
@@ -213,15 +196,15 @@ public class AsyncDataFetchRule : IAsyncRule
 
     public async Task<bool> EvaluateAsync(Facts facts, CancellationToken ct = default)
     {
-        return facts.TryGetValue<string>("url", out _);
+        return facts.TryGetFactValue<string>("url", out _);
     }
 
     public async Task<Facts> ExecuteAsync(Facts facts, CancellationToken ct = default)
     {
-        if (facts.TryGetValue<string>("url", out var url))
+        if (facts.TryGetFactValue<string>("url", out var url))
         {
             var data = await FetchDataAsync(url, ct);
-            return facts.Set("fetchedData", data);
+            return facts.AddOrReplaceFact("fetchedData", data);
         }
         return facts;
     }
@@ -244,7 +227,7 @@ The engine automatically detects `IAsyncRule` implementations and uses async met
 
 ## Best practices and notes
 
-- Prefer `Facts.TryGetValue<T>` when reading facts in conditions to avoid invalid cast exceptions.
+- Prefer `Facts.TryGetFactValue<T>` when reading facts in conditions to avoid invalid cast exceptions.
 - Keep conditions side effect free. Actions are the place to mutate facts or call external systems.
 - Since `Facts` is immutable, actions must return the updated `Facts` instance for changes to propagate to subsequent rules.
 - Use `ActionAttribute(Order = n)` to express action ordering when multiple methods exist on a rule.

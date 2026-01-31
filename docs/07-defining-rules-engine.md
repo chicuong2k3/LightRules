@@ -67,7 +67,7 @@ Example (end-to-end minimal):
 ```csharp
 var rules = new Rules(); // populate with discovered or programmatic rules
 var facts = new Facts();
-facts = facts.Set("quantity", 5);
+facts = facts.AddOrReplaceFact("quantity", 5);
 
 var parameters = new RulesEngineParameters().WithSkipOnFirstAppliedRule(true);
 var engine = new DefaultRulesEngine(parameters);

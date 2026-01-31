@@ -14,9 +14,10 @@ namespace LightRules.Samples
         }
 
         [Action(Order = 1)]
-        public void ApplyDiscount([Fact("orderId")] string id)
+        public Facts ApplyDiscount([Fact("orderId")] string id, Facts facts)
         {
             Console.WriteLine($"ApplyDiscount called for order {id}");
+            return facts.AddOrReplaceFact("discountApplied", true);
         }
     }
 }

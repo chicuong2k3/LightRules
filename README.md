@@ -77,11 +77,11 @@ This builds the runtime project and runs the source generator (if configured for
    - Programmatic: implement `IRule` (note: `Execute` now returns `Facts`) or use `DefaultRule`.
    - Attribute-based: annotate POCOs and build (the source generator will emit adapters). The generator supports legacy void actions for compatibility.
 
-2. Create and populate an immutable `Facts` instance (use fluent `Set` to return a new instance):
+2. Create and populate an immutable `Facts` instance (use fluent `AddOrReplaceFact` to return a new instance):
 
 ```csharp
 var facts = new Facts();
-facts = facts.Set("quantity", 5);
+facts = facts.AddOrReplaceFact("quantity", 5);
 ```
 
 3. Build and run the engine:
@@ -92,32 +92,25 @@ var engine = new DefaultRulesEngine();
 var finalFacts = engine.Fire(rules, facts);
 ```
 
-Migration note: this release introduces breaking API changes — `Facts` is now immutable and `IAction.Execute` and `IRule.Execute` return a `Facts` instance. The generator provides compatibility for legacy void actions; see the docs `docs/defining-rules-attribute-based.md` and `docs/defining-actions.md` for migration tips.
-
-4. Example: attribute-based discovery and adapter instantiation (very small example):
+4. Example: attribute-based discovery and instantiation (no reflection required):
 
 ```csharp
+// Rules are auto-registered via ModuleInitializer when assembly loads
 var metas = RuleDiscovery.Discover();
 var rules = new Rules();
+
 foreach (var meta in metas)
 {
-    // meta.RuleType refers to a generated adapter type (e.g. MyRule_RuleAdapter)
-    IRule instance;
-    try
-    {
-        // If you have the original POCO instance, try passing it to the adapter constructor
-        instance = (IRule)Activator.CreateInstance(meta.RuleType /*, pocoInstance */)!;
-    }
-    catch
-    {
-        // fallback to parameterless constructor
-        instance = (IRule)Activator.CreateInstance(meta.RuleType)!;
-    }
+    // Use factory to create instance - no Activator.CreateInstance needed!
+    var instance = meta.CreateInstance();
     rules.Register(instance);
 }
+
+var engine = new DefaultRulesEngine();
+var finalFacts = engine.Fire(rules, facts);
 ```
 
-> Note: Generated adapter constructors may vary by generator version. A robust injector tries both a constructor that accepts the original POCO and a parameterless constructor.
+> Note: LightRules is fully AOT-compatible. Discovery, registration, and instantiation all work without runtime reflection.
 
 ## Documentation
 

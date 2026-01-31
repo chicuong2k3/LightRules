@@ -35,7 +35,7 @@ public class MarkProcessedAction : IAction
 {
     public Facts Execute(Facts facts)
     {
-        return facts.Set("processed", true);
+        return facts.AddOrReplaceFact("processed", true);
     }
 }
 ```
@@ -43,7 +43,7 @@ public class MarkProcessedAction : IAction
 ### Delegate-based action
 
 ```csharp
-var action = Actions.From(f => f.Set("handled", true));
+var action = Actions.From(f => f.AddOrReplaceFact("handled", true));
 ```
 
 ### Attribute-based action (in a rule class)
@@ -58,7 +58,7 @@ public class ProcessOrderRule
     [Action]
     public Facts Process(Facts facts)
     {
-        return facts.Set("status", "processed");
+        return facts.AddOrReplaceFact("status", "processed");
     }
 }
 ```
@@ -72,7 +72,7 @@ Action methods can use `[Fact("name")]` attribute on parameters for automatic bi
 public Facts SendEmail([Fact("email")] string email, Facts facts)
 {
     EmailClient.Send(email, "Subject", "Body");
-    return facts.Set("emailSent", true);
+    return facts.AddOrReplaceFact("emailSent", true);
 }
 ```
 
@@ -91,21 +91,21 @@ public class BackupRule
     public Facts Prepare(Facts facts)
     {
         // Prepare for backup
-        return facts.Set("backupPrepared", true);
+        return facts.AddOrReplaceFact("backupPrepared", true);
     }
 
     [Action(Order = 2)]
     public Facts Backup(Facts facts)
     {
         // Perform backup
-        return facts.Set("backedUp", true);
+        return facts.AddOrReplaceFact("backedUp", true);
     }
 
     [Action(Order = 3)]
     public Facts Cleanup(Facts facts)
     {
         // Cleanup temporary files
-        return facts.Set("cleanedUp", true);
+        return facts.AddOrReplaceFact("cleanedUp", true);
     }
 }
 ```
@@ -130,7 +130,7 @@ public interface IAsyncAction
 var asyncAction = AsyncActions.From(async (facts, ct) =>
 {
     await SomeAsyncOperation(ct);
-    return facts.Set("completed", true);
+    return facts.AddOrReplaceFact("completed", true);
 });
 
 // Wrap a synchronous action
@@ -151,10 +151,10 @@ public class FetchDataAction : IAsyncAction
 
     public async Task<Facts> ExecuteAsync(Facts facts, CancellationToken ct = default)
     {
-        if (facts.TryGetValue<string>("url", out var url))
+        if (facts.TryGetFactValue<string>("url", out var url))
         {
             var response = await _client.GetStringAsync(url, ct);
-            return facts.Set("response", response);
+            return facts.AddOrReplaceFact("response", response);
         }
         return facts;
     }
@@ -177,13 +177,13 @@ Write composable actions that do one thing well. Small actions are easier to tes
 ```csharp
 // Good: Single responsibility
 [Action(Order = 1)]
-public Facts ValidateOrder(Facts facts) => facts.Set("validated", true);
+public Facts ValidateOrder(Facts facts) => facts.AddOrReplaceFact("validated", true);
 
 [Action(Order = 2)]
-public Facts CalculateTotal(Facts facts) => facts.Set("total", ComputeTotal(facts));
+public Facts CalculateTotal(Facts facts) => facts.AddOrReplaceFact("total", ComputeTotal(facts));
 
 [Action(Order = 3)]
-public Facts SendConfirmation(Facts facts) => facts.Set("confirmed", true);
+public Facts SendConfirmation(Facts facts) => facts.AddOrReplaceFact("confirmed", true);
 ```
 
 ### Be explicit about side effects
@@ -208,12 +208,12 @@ When actions interact with external systems, design them so repeated execution d
 [Action]
 public Facts ProcessPayment(Facts facts)
 {
-    if (facts.TryGetValue<string>("paymentId", out var paymentId))
+    if (facts.TryGetFactValue<string>("paymentId", out var paymentId))
     {
         // Use idempotency key to prevent duplicate charges
-        var idempotencyKey = $"order-{facts.Get<string>("orderId")}";
+        var idempotencyKey = $"order-{facts.GetFactValue<string>("orderId")}";
         PaymentService.Charge(paymentId, idempotencyKey);
-        return facts.Set("paymentProcessed", true);
+        return facts.AddOrReplaceFact("paymentProcessed", true);
     }
     return facts;
 }
@@ -235,7 +235,7 @@ public class SaveToDbAction : IAsyncAction
     public async Task<Facts> ExecuteAsync(Facts facts, CancellationToken ct)
     {
         await _dbContext.SaveChangesAsync(ct);
-        return facts.Set("saved", true);
+        return facts.AddOrReplaceFact("saved", true);
     }
 }
 ```
@@ -280,13 +280,13 @@ public Facts SendNotification(Facts facts)
 {
     try
     {
-        NotificationService.Send(facts.Get<string>("message"));
-        return facts.Set("notificationSent", true);
+        NotificationService.Send(facts.GetFactValue<string>("message"));
+        return facts.AddOrReplaceFact("notificationSent", true);
     }
     catch (NotificationException ex)
     {
         _logger.LogWarning(ex, "Failed to send notification");
-        return facts.Set("notificationFailed", true);
+        return facts.AddOrReplaceFact("notificationFailed", true);
     }
 }
 ```
@@ -309,12 +309,12 @@ Return updated `Facts` from each action. The engine passes the returned `Facts` 
 
 ```csharp
 [Action(Order = 1)]
-public Facts Step1(Facts facts) => facts.Set("step1Result", "value1");
+public Facts Step1(Facts facts) => facts.AddOrReplaceFact("step1Result", "value1");
 
 [Action(Order = 2)]
 public Facts Step2(Facts facts)
 {
-    var step1Result = facts.Get<string>("step1Result");
-    return facts.Set("step2Result", $"processed: {step1Result}");
+    var step1Result = facts.GetFactValue<string>("step1Result");
+    return facts.AddOrReplaceFact("step2Result", $"processed: {step1Result}");
 }
 ```

@@ -37,14 +37,14 @@ Key characteristics:
 
 ```csharp
 // Safe to share across threads
-var facts = new Facts().Set("counter", 0);
+var facts = new Facts().AddOrReplaceFact("counter", 0);
 
 // Each thread gets its own copy when mutating
-var thread1Facts = facts.Set("counter", 1);
-var thread2Facts = facts.Set("counter", 2);
+var thread1Facts = facts.AddOrReplaceFact("counter", 1);
+var thread2Facts = facts.AddOrReplaceFact("counter", 2);
 
 // Original facts is unchanged
-Console.WriteLine(facts.Get<int>("counter")); // 0
+Console.WriteLine(facts.GetFactValue<int>("counter")); // 0
 ```
 
 ## Using facts inside conditions and actions
@@ -67,7 +67,7 @@ public class WeatherRule
     public Facts TakeAnUmbrella(Facts facts)
     {
         Console.WriteLine("It rains, take an umbrella!");
-        return facts.Set("umbrellaTaken", true);
+        return facts.AddOrReplaceFact("umbrellaTaken", true);
     }
 }
 ```
@@ -79,22 +79,22 @@ public class WeatherRule
 var facts = new Facts();
 
 // Add typed fact (returns new Facts instance)
-facts = facts.Set("quantity", 10);
+facts = facts.AddOrReplaceFact("quantity", 10);
 
 // Add using Fact instance
-facts = facts.Add(new Fact("customer", "Alice"));
+facts = facts.AddFact(new Fact("customer", "Alice"));
 
 // Read typed value (returns default if not present; throws on type mismatch)
-int q = facts.Get<int>("quantity");
+int q = facts.GetFactValue<int>("quantity");
 
 // Safe read (recommended in conditions)
-if (facts.TryGetValue<int>("quantity", out var safeQ))
+if (facts.TryGetFactValue<int>("quantity", out var safeQ))
 {
     Console.WriteLine(safeQ);
 }
 
 // Check if fact exists
-if (facts.ContainsKey("customer"))
+if (facts.ContainsFact("customer"))
 {
     Console.WriteLine("Customer fact exists");
 }
@@ -115,7 +115,7 @@ if (facts.TryGetFact<string>("customer", out var typedFact))
 }
 
 // Remove (returns new Facts instance)
-facts = facts.Remove("customer");
+facts = facts.RemoveFact("customer");
 
 // Get as dictionary (for serialization/logging)
 var dict = facts.ToDictionary();
@@ -133,7 +133,7 @@ No. Within a single `Facts` instance, names are unique. Adding a fact with an ex
 
 **Q: What happens if I try to get a fact with the wrong type?**
 
-`Get<T>` attempts a cast and will throw an exception if the stored runtime value is not assignable to `T`. Use `TryGetValue<T>` to safely test and retrieve typed values.
+`GetFactValue<T>` attempts a cast and will throw an exception if the stored runtime value is not assignable to `T`. Use `TryGetFactValue<T>` to safely test and retrieve typed values.
 
 **Q: Is the fact name comparison case-sensitive?**
 

@@ -44,7 +44,7 @@ Example:
 
 ```csharp
 // A condition that checks if the "temperature" fact is over 30 degrees
-var cond = Conditions.From(facts => facts.TryGetValue<int>("temperature", out var t) && t > 30);
+var cond = Conditions.From(facts => facts.TryGetFactValue<int>("temperature", out var t) && t > 30);
 if (cond.Evaluate(facts)) // if the condition is met
 {
     // do something
@@ -60,7 +60,7 @@ public class IsAdultCondition : ICondition
 {
     public bool Evaluate(Facts facts)
     {
-        return facts.TryGetValue<int>("age", out var age) && age >= 18;
+        return facts.TryGetFactValue<int>("age", out var age) && age >= 18;
     }
 }
 ```
@@ -74,8 +74,8 @@ Or you can use `Conditions.From` with a lambda for concise one-off conditions.
 
 > Engine snapshot behavior: The engine evaluates conditions against a snapshot copy of the provided `Facts` (using `Facts.Clone()`), so condition code cannot mutate the original `Facts` instance that actions will later observe. This makes it safe to assume conditions are read-only and prevents surprising interactions caused by condition-side effects. If you need to update facts, do so in actions.
 
-- Null & missing facts: Use `TryGetValue<T>` when a fact might be absent or have a different runtime type. 
-`Get<T>` will cast the stored value and may throw if the runtime type does not match; prefer `Try*` patterns in conditions.
+- Null & missing facts: Use `TryGetFactValue<T>` when a fact might be absent or have a different runtime type. 
+`GetFactValue<T>` will cast the stored value and may throw if the runtime type does not match; prefer `Try*` patterns in conditions.
 - Performance: Keep evaluations cheap, they are executed frequently. Avoid blocking IO or expensive computation in `Evaluate`.
 - Exceptions: If a condition throws an exception, the engine's behavior depends on its implementation. 
 When possible, handle expected error cases inside the condition and return `false`.
@@ -117,8 +117,8 @@ public class AndCondition : ICondition
 Quick usage examples:
 
 ```csharp
-var highTemp = Conditions.From(f => f.TryGetValue<int>("temp", out var t) && t >= 35);
-var isWeekend = Conditions.From(f => f.TryGetValue<bool>("isWeekend", out var w) && w);
+var highTemp = Conditions.From(f => f.TryGetFactValue<int>("temp", out var t) && t >= 35);
+var isWeekend = Conditions.From(f => f.TryGetFactValue<bool>("isWeekend", out var w) && w);
 
 // Compose: high temp AND weekend
 var hotWeekend = ConditionCombinators.And(highTemp, isWeekend);
@@ -140,7 +140,7 @@ Use these combinators to keep condition logic modular and testable.
 1) Simple lambda-based condition:
 
 ```csharp
-var cond = Conditions.From(f => f.TryGetValue<bool>("isWeekend", out var w) && w);
+var cond = Conditions.From(f => f.TryGetFactValue<bool>("isWeekend", out var w) && w);
 if (cond.Evaluate(facts))
 {
     Console.WriteLine("It's weekend!");
@@ -154,7 +154,7 @@ public sealed class HighTemperatureCondition : ICondition
 {
     private readonly int _threshold;
     public HighTemperatureCondition(int threshold) => _threshold = threshold;
-    public bool Evaluate(Facts facts) => facts.TryGetValue<int>("temp", out var t) && t >= _threshold;
+    public bool Evaluate(Facts facts) => facts.TryGetFactValue<int>("temp", out var t) && t >= _threshold;
 }
 
 // Usage
@@ -170,4 +170,4 @@ Q: Can I mutate facts inside a condition?
 A: Technically yes, but it's discouraged. Conditions should be predicates. Mutating facts in `Evaluate` may produce surprising interactions between rules.
 
 Q: What if the fact type doesn't match the expected type?
-A: Use `TryGetValue<T>` to safely test and retrieve a typed value. Do not rely on `Get<T>` without validation.
+A: Use `TryGetFactValue<T>` to safely test and retrieve a typed value. Do not rely on `GetFactValue<T>` without validation.

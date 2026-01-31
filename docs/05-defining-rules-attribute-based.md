@@ -7,7 +7,7 @@
 - [Example](#example)
 - [What the generator emits](#what-the-generator-emits)
 - [Discovery and registration](#discovery-and-registration)
-- [Adapter constructor](#adapter-constructor)
+- [AOT and trimming support](#aot-and-trimming-support)
 - [Tips and caveats](#tips-and-caveats)
 
 ## Overview
@@ -18,13 +18,14 @@ This project supports an attribute-based approach to define rules: write simple 
 
 - **Developer ergonomics**: write plain classes with attributes and avoid boilerplate adapter code.
 - **Performance & AOT-friendliness**: generated adapters call rule methods directly without runtime reflection, making them efficient and trim-friendly.
+- **No reflection required**: discovery, registration, and instance creation all work without reflection.
 
 ## How it works
 
 1. Author a POCO rule class and annotate methods/properties with attributes (see examples below).
 2. The source generator (`LightRules.Generator`) runs at compile time and emits a `{RuleType}_RuleAdapter.g.cs` class that implements `IRule`.
-3. The generator also emits a `LightRules.Generated.RuleRegistry` containing `RuleMetadata` entries for all generated adapters.
-4. At runtime, the engine uses the generated adapters and the registry; there is no reflection or proxy logic used.
+3. The generator also emits a `ModuleInitializer` that auto-registers rules into `GlobalRuleRegistry` when the assembly loads.
+4. At runtime, use `RuleDiscovery.Discover()` to get all registered rules and `meta.CreateInstance()` to create instances - no reflection needed.
 
 ## Attributes
 
@@ -51,8 +52,8 @@ public class HighValueOrderRule
     [Action(Order = 1)]
     public Facts ApplyDiscount([Fact("orderId")] string id, Facts facts)
     {
-        // return a new Facts instance with the discount flag set
-        return facts.Set("discountApplied", true);
+        Console.WriteLine($"Applying discount to order {id}");
+        return facts.AddOrReplaceFact("discountApplied", true);
     }
 }
 ```
@@ -61,57 +62,57 @@ public class HighValueOrderRule
 
 For the example above, the generator produces `HighValueOrderRule_RuleAdapter : IRule` with:
 
-- `bool Evaluate(Facts facts)` — binds `total` using `facts.TryGetValue<decimal>("orderTotal", out var total)` and calls `_target.IsHighValue(total)`.
+- `bool Evaluate(Facts facts)` — binds `total` using `facts.TryGetFactValue<decimal>("orderTotal", out var total)` and calls `_target.IsHighValue(total)`.
 - `Facts Execute(Facts facts)` — binds parameters, calls action methods in order, and returns the final `Facts` instance.
 - `string Name { get; }`, `string Description { get; }`, `int Priority { get; }` — metadata properties.
 
+The generator also emits a `ModuleInitializer` that auto-registers rules when the assembly loads.
+
 ## Discovery and registration
 
-The generator produces a registry `LightRules.Generated.RuleRegistry.All` (an array of `RuleMetadata`).
-
-Use `RuleDiscovery.Discover()` to get `RuleMetadata` entries and register the generated adapters:
+Rules are automatically registered via `ModuleInitializer` when the assembly loads. Use `RuleDiscovery.Discover()` to access them:
 
 ```csharp
+// Get all discovered rules (auto-registered via ModuleInitializer)
 var metas = RuleDiscovery.Discover();
 var rules = new Rules();
 
 foreach (var meta in metas)
 {
-    var adapter = (IRule)Activator.CreateInstance(meta.RuleType)!;
-    rules.Register(adapter);
+    // Create instance using factory - no reflection required!
+    var ruleInstance = meta.CreateInstance();
+    rules.Register(ruleInstance);
 }
 
 var engine = new DefaultRulesEngine();
 var finalFacts = engine.Fire(rules, facts);
 ```
 
-## Adapter constructor
+Key points:
+- **No reflection**: `RuleDiscovery.Discover()` returns rules from `GlobalRuleRegistry` (populated by `ModuleInitializer`).
+- **Factory pattern**: `meta.CreateInstance()` uses a compile-time generated factory lambda, not `Activator.CreateInstance`.
+- **AOT-friendly**: The entire discovery and instantiation process works without runtime reflection.
 
-Generated adapters are normal C# types. Their constructors may vary depending on generator behavior (some adapters expose a parameterless constructor, others accept the original POCO instance).
+## AOT and trimming support
 
-A practical injector should attempt to instantiate an adapter using the original POCO (if available) and fall back to a parameterless constructor:
+LightRules is designed to work with AOT compilation and trimming:
 
-```csharp
-IRule CreateAdapter(Type adapterType, object? poco = null)
-{
-    try
-    {
-        if (poco != null)
-        {
-            return (IRule)Activator.CreateInstance(adapterType, poco)!;
-        }
-    }
-    catch { }
-    return (IRule)Activator.CreateInstance(adapterType)!;
-}
+- **No reflection for discovery**: `ModuleInitializer` auto-registers rules at assembly load time.
+- **No reflection for instantiation**: `RuleMetadata.CreateInstance()` uses a factory lambda generated at compile time.
+- **No dynamic type loading**: All types are known at compile time.
+
+To validate AOT/trimming compatibility:
+
+```bash
+dotnet publish -c Release -r linux-x64 --self-contained -p:PublishTrimmed=true
 ```
 
 ## Tips and caveats
 
 - The generator emits warnings for unsupported parameter shapes. Keep rule method signatures simple: parameters should either be annotated with `[Fact]` or be a single `Facts` parameter.
 - Generated adapters are ordinary C# code — you can view them in your IDE under the generated sources node or in build artifacts.
-- You can extend the generator to support optional facts, default values, or more advanced binding.
-- To validate AOT/trimming, add a CI job that builds the solution with `PublishTrimmed`/NativeAOT and runs smoke tests.
+- Rules are automatically discovered when their assembly loads; no manual registration is needed.
+- For unit testing, you can use `GlobalRuleRegistry.Clear()` to reset the registry between tests.
 
 ### Quick start
 
@@ -120,5 +121,10 @@ IRule CreateAdapter(Type adapterType, object? poco = null)
 # 2. Build the project (generator will produce adapters)
 dotnet build
 
-# 3. Use RuleDiscovery.Discover() to get metadata and register rules
+# 3. Use RuleDiscovery.Discover() and CreateInstance() to run rules
+var rules = new Rules();
+foreach (var meta in RuleDiscovery.Discover())
+{
+    rules.Register(meta.CreateInstance());
+}
 ```

@@ -23,12 +23,12 @@ public sealed class Facts : IEnumerable<Fact>
     /// <summary>
     /// Gets the runtime value of a fact by name (or null if not present).
     /// </summary>
-    public object? this[string name] => Get<object>(name);
+    public object? this[string name] => GetFactValue<object>(name);
 
     /// <summary>
-    /// Return a new Facts instance with the given typed fact set (add or replace).
+    /// Return a new Facts instance with the given typed fact added or replaced.
     /// </summary>
-    public Facts Set<T>(string name, T value)
+    public Facts AddOrReplaceFact<T>(string name, T value)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
         if (value == null) throw new ArgumentNullException(nameof(value));
@@ -36,18 +36,20 @@ public sealed class Facts : IEnumerable<Fact>
     }
 
     /// <summary>
-    /// Add a <c>Fact&lt;T&gt;</c> instance; returns a new Facts instance.
+    /// Add a typed Fact instance; returns a new Facts instance.
+    /// If a fact with the same name exists, it will be replaced.
     /// </summary>
-    public Facts Add<T>(Fact<T> fact)
+    public Facts AddFact<T>(Fact<T> fact)
     {
         ArgumentNullException.ThrowIfNull(fact);
         return new Facts(_map.SetItem(fact.Name, fact.Value));
     }
 
     /// <summary>
-    /// Add a non-generic Fact instance; returns a new Facts instance.
+    /// Add a Fact instance; returns a new Facts instance.
+    /// If a fact with the same name exists, it will be replaced.
     /// </summary>
-    public Facts Add(Fact fact)
+    public Facts AddFact(Fact fact)
     {
         ArgumentNullException.ThrowIfNull(fact);
         return new Facts(_map.SetItem(fact.Name, fact.Value));
@@ -56,7 +58,7 @@ public sealed class Facts : IEnumerable<Fact>
     /// <summary>
     /// Remove a fact by name and return a new Facts instance.
     /// </summary>
-    public Facts Remove(string factName)
+    public Facts RemoveFact(string factName)
     {
         if (string.IsNullOrWhiteSpace(factName)) throw new ArgumentNullException(nameof(factName));
         if (!_map.ContainsKey(factName)) return this;
@@ -66,25 +68,26 @@ public sealed class Facts : IEnumerable<Fact>
     /// <summary>
     /// Remove a fact instance and return a new Facts instance.
     /// </summary>
-    public Facts Remove(Fact fact)
+    public Facts RemoveFact(Fact fact)
     {
         ArgumentNullException.ThrowIfNull(fact);
-        return Remove(fact.Name);
+        return RemoveFact(fact.Name);
     }
 
     /// <summary>
     /// Remove a typed fact instance and return a new Facts instance.
     /// </summary>
-    public Facts Remove<T>(Fact<T> fact)
+    public Facts RemoveFact<T>(Fact<T> fact)
     {
         ArgumentNullException.ThrowIfNull(fact);
-        return Remove(fact.Name);
+        return RemoveFact(fact.Name);
     }
 
     /// <summary>
     /// Get the value of a fact by its name. Returns default(T) if not present.
+    /// Use <see cref="TryGetFactValue{T}"/> for safe access without exceptions on type mismatch.
     /// </summary>
-    public T? Get<T>(string factName)
+    public T? GetFactValue<T>(string factName)
     {
         if (string.IsNullOrWhiteSpace(factName)) throw new ArgumentNullException(nameof(factName));
         if (_map.TryGetValue(factName, out var v))
@@ -95,9 +98,9 @@ public sealed class Facts : IEnumerable<Fact>
     }
 
     /// <summary>
-    /// Try get the value of a fact by its name. Returns true if found and assignable to T.
+    /// Try to get the value of a fact by its name. Returns true if found and assignable to T.
     /// </summary>
-    public bool TryGetValue<T>(string factName, out T? value)
+    public bool TryGetFactValue<T>(string factName, out T? value)
     {
         value = default;
         if (string.IsNullOrWhiteSpace(factName)) return false;
@@ -111,7 +114,7 @@ public sealed class Facts : IEnumerable<Fact>
     }
 
     /// <summary>
-    /// Get a fact by name.
+    /// Get a Fact object by name. Returns null if not present.
     /// </summary>
     public Fact? GetFact(string factName)
     {
@@ -124,7 +127,7 @@ public sealed class Facts : IEnumerable<Fact>
     }
 
     /// <summary>
-    /// Try get a fact by name.
+    /// Try to get a Fact object by name.
     /// </summary>
     public bool TryGetFact(string factName, out Fact? fact)
     {
@@ -139,7 +142,7 @@ public sealed class Facts : IEnumerable<Fact>
     }
 
     /// <summary>
-    /// Try get a typed <c>Fact&lt;T&gt;</c> from the collection.
+    /// Try to get a typed Fact object from the collection.
     /// </summary>
     public bool TryGetFact<T>(string factName, out Fact<T>? fact)
     {
@@ -155,12 +158,9 @@ public sealed class Facts : IEnumerable<Fact>
     }
 
     /// <summary>
-    /// Return a copy of the facts as a dictionary.
+    /// Check if a fact with the given name exists.
     /// </summary>
-    public Dictionary<string, object?> ToDictionary()
-    {
-        return new Dictionary<string, object?>(_map, StringComparer.Ordinal);
-    }
+    public bool ContainsFact(string factName) => _map.ContainsKey(factName);
 
     /// <summary>
     /// Number of facts in the collection.
@@ -168,9 +168,12 @@ public sealed class Facts : IEnumerable<Fact>
     public int Count => _map.Count;
 
     /// <summary>
-    /// Check if a fact with the given name exists.
+    /// Return a copy of the facts as a dictionary.
     /// </summary>
-    public bool ContainsKey(string factName) => _map.ContainsKey(factName);
+    public Dictionary<string, object?> ToDictionary()
+    {
+        return new Dictionary<string, object?>(_map, StringComparer.Ordinal);
+    }
 
     /// <summary>
     /// Create a shallow copy of the Facts collection. Since Facts is immutable, returns the same instance.
