@@ -9,59 +9,55 @@
 - [Examples](#examples)
 - [Troubleshooting / FAQ](#troubleshooting--faq)
 
-This document explains what an "action" is in LightRules. It is written for beginners 
-and assumes no prior knowledge of rule engines.
+This document explains what an "action" is in LightRules and how to write actions in the new immutable, functional style.
 
 ## What is an Action?
 
-An Action is the piece of code executed when a rule fires (i.e., when its condition evaluated to `true`). 
-Actions perform work such as changing facts, triggering side effects (logging, sending messages, updating data stores), or invoking other services.
+An Action is the piece of code executed when a rule fires (i.e., when its condition evaluated to `true`).
+Actions perform work such as producing a new facts set, triggering side-effects (logging, sending messages, updating data stores), or invoking other services.
 
-In LightRules the Action abstraction is represented by the `IAction` interface and the `Actions` static helper:
+In LightRules the Action abstraction is represented by the `IAction` interface:
 
 ```csharp
 public interface IAction
 {
-    void Execute(Facts facts);
+    // Execute the action and return the Facts instance to use for subsequent rules.
+    Facts Execute(Facts facts);
 }
 ```
 
-There is also a functional helper to create actions from delegates. The engine calls `Execute` with the current `Facts` instance when the rule fires.
+Actions are functional: they accept a `Facts` instance and return a (possibly new) `Facts` instance. This makes the engine behaviour explicit and suitable for reasoning and testing.
 
 ## Key semantics
 
-- Side effects are allowed: Actions exist to produce side effects. Unlike conditions (which should be pure when possible), actions commonly mutate facts or interact with external systems.
-- Facts instance: Actions receive the same `Facts` instance used during condition evaluation. 
-Mutating this `Facts` object affects subsequent rules executed in the same engine run 
-unless the engine snapshots facts beforehand.
-- Exceptions: Action implementations may throw exceptions. The engine's policy determines how exceptions are handled (propagation, logging, skipping remaining actions, or aborting rule execution). 
-When possible, handle recoverable errors inside the action and let unrecoverable errors bubble up only if intended.
-- Ordering: A rule can expose multiple actions. Actions should run in the defined order. When writing multiple actions, keep them independent when possible.
+- Side effects: Actions may produce side effects (external calls). Prefer to keep side-effects explicit and document them.
+- Facts flow: Actions return a `Facts` instance; the engine threads the returned instance forward so subsequent rules see any updates made by previous actions.
+- Legacy support: For compatibility, `Actions.From(Action<Facts>)` executes the legacy mutation-style delegate on a mutable builder and returns an immutable `Facts` instance. Prefer the functional `Func<Facts, Facts>` form for new code.
 
 ## Implementing an action
 
-You can implement `IAction` directly for reusable actions:
+Functional style (recommended):
 
 ```csharp
-public class SendNotificationAction : IAction
+public class MarkProcessedAction : IAction
 {
-    public void Execute(Facts facts)
+    public Facts Execute(Facts facts)
     {
-        if (facts.TryGetValue<string>("email", out var email))
-        {
-            // send email (pseudo-code)
-            EmailClient.Send(email, "Alert", "A rule fired");
-            facts.Set("notificationSent", true);
-        }
+        return facts.Set("processed", true);
     }
 }
 ```
 
-Or use a delegate-based helper to create small actions inline:
+Compatibility wrapper from a delegate:
 
 ```csharp
-var action = Actions.From(f => f.Set("handled", true));
+var action = Actions.From(f => f.Set("handled", true)); // func -> returns Facts
+
+// or use legacy-style delegate (compatibility):
+var legacy = Actions.From((Facts f) => { f.Set("handled", true); });
 ```
+
+Notes: the legacy wrapper runs the delegate against a mutable builder internally and returns an immutable result; prefer the functional `Func<Facts, Facts>` form.
 
 ## Parameter binding with attribute-based actions
 
@@ -87,13 +83,13 @@ The engine is responsible for resolving parameters before calling the method. Fo
 
 ## Examples
 
-1) Simple inline action using `Facts`:
+1) Functional action returning updated Facts (recommended):
 
 ```csharp
 [Action]
-public void MarkProcessed(Facts facts)
+public Facts MarkProcessed(Facts facts)
 {
-    facts.Set("processed", true);
+    return facts.Set("processed", true);
 }
 ```
 
@@ -102,37 +98,39 @@ public void MarkProcessed(Facts facts)
 ```csharp
 public class ArchiveAction : IAction
 {
-    public void Execute(Facts facts)
+    public Facts Execute(Facts facts)
     {
         if (facts.TryGetValue<string>("documentId", out var id))
         {
             ArchiveService.Archive(id);
-            facts.Set("archived", true);
+            return facts.Set("archived", true);
         }
+        return facts;
     }
 }
 ```
 
-3) Multiple actions and order (illustrative):
+3) Multiple actions with ordering:
 
 ```csharp
 [Rule("BackupRule")]
-public class BackupRule : IRule
+public class BackupRule
 {
+    [Condition]
+    public bool ShouldBackup([Fact("needsBackup")] bool needsBackup) => needsBackup;
+
     [Action(Order = 1)]
-    public void Prepare(Facts facts) { /* prepare */ }
+    public Facts Prepare(Facts facts) { /* prepare */ return facts; }
 
     [Action(Order = 2)]
-    public void Backup(Facts facts) { /* backup */ }
+    public Facts Backup(Facts facts) { /* backup */ return facts.Set("backedUp", true); }
 
     [Action(Order = 3)]
-    public void Cleanup(Facts facts) { /* cleanup */ }
-
-    // Condition + metadata omitted for brevity
+    public Facts Cleanup(Facts facts) { /* cleanup */ return facts; }
 }
 ```
 
-Note: The actual `Order` attribute and enforcement may vary depending on the rule discovery/executor implementation. Consult the discovery/engine docs for exact behavior.
+Note: Actions are executed in `Order` sequence. The `Facts` instance returned by each action is passed to the next.
 
 ## Troubleshooting / FAQ
 

@@ -8,7 +8,7 @@ namespace LightRules.Core
     /// </summary>
     public abstract class AbstractRulesEngine : IRulesEngine
     {
-        private RulesEngineParameters _parameters;
+        private readonly RulesEngineParameters _parameters;
         private readonly List<IRuleListener> _ruleListeners;
         private readonly List<IRulesEngineListener> _rulesEngineListeners;
 
@@ -22,7 +22,7 @@ namespace LightRules.Core
         /// </summary>
         protected AbstractRulesEngine(RulesEngineParameters parameters)
         {
-            _parameters = parameters ?? new RulesEngineParameters();
+            _parameters = parameters;
             _ruleListeners = new List<IRuleListener>();
             _rulesEngineListeners = new List<IRulesEngineListener>();
         }
@@ -89,7 +89,7 @@ namespace LightRules.Core
         }
 
         // IRulesEngine.Fire and Check must be implemented by subclasses
-        public abstract void Fire(Rules rules, Facts facts);
+        public abstract Facts Fire(Rules rules, Facts facts);
 
         public virtual IDictionary<IRule, bool> Check(Rules rules, Facts facts)
         {

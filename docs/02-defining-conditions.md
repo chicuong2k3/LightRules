@@ -73,8 +73,10 @@ Or you can use `Conditions.From` with a lambda for concise one-off conditions.
 ## Semantics and best practices
 
 - Pure predicate: A condition should ideally be a pure predicate, it should only read facts and return a boolean result without causing side effects. This makes rule evaluation predictable and easier to test.
-- Read-only intent: Although the `Facts` object can be mutated, prefer not to mutate it from inside `Evaluate`. 
-Mutating facts during evaluation may change the outcome of other conditions or rules and makes reasoning about execution order harder.
+- Read-only intent: Although the `Facts` object can be mutated, prefer not to mutate it from inside `Evaluate`.
+
+> Engine snapshot behavior: The engine evaluates conditions against a snapshot copy of the provided `Facts` (using `Facts.Clone()`), so condition code cannot mutate the original `Facts` instance that actions will later observe. This makes it safe to assume conditions are read-only and prevents surprising interactions caused by condition-side effects. If you need to update facts, do so in actions.
+
 - Null & missing facts: Use `TryGetValue<T>` when a fact might be absent or have a different runtime type. 
 `Get<T>` will cast the stored value and may throw if the runtime type does not match; prefer `Try*` patterns in conditions.
 - Performance: Keep evaluations cheap, they are executed frequently. Avoid blocking IO or expensive computation in `Evaluate`.
@@ -98,10 +100,14 @@ When a fact is missing or the type is incompatible, the engine must define a cle
 
 ## Composition
 
-Combining conditions: The core API exposes single-condition evaluation. 
-If you need composed logic (AND/OR/NOT), implement a small combinator:
+If you need composed logic (AND/OR/NOT), use the provided combinators in `ConditionCombinators` or implement similar small compositors.
+
+The library includes simple combinators: `ConditionCombinators.And(a,b)`, `ConditionCombinators.Or(a,b)`, and `ConditionCombinators.Not(inner)`.
+
+Example implementations (already provided in the runtime):
 
 ```csharp
+// Equivalent conceptual implementation
 public class AndCondition : ICondition
 {
     private readonly ICondition _a;
@@ -110,6 +116,27 @@ public class AndCondition : ICondition
     public bool Evaluate(Facts facts) => _a.Evaluate(facts) && _b.Evaluate(facts);
 }
 ```
+
+Quick usage examples:
+
+```csharp
+var highTemp = Conditions.From(f => f.TryGetValue<int>("temp", out var t) && t >= 35);
+var isWeekend = Conditions.From(f => f.TryGetValue<bool>("isWeekend", out var w) && w);
+
+// Compose: high temp AND weekend
+var hotWeekend = ConditionCombinators.And(highTemp, isWeekend);
+
+// Compose: NOT weekend
+var notWeekend = ConditionCombinators.Not(isWeekend);
+
+// Compose: high temp OR weekend
+var hotOrWeekend = ConditionCombinators.Or(highTemp, isWeekend);
+
+if (hotWeekend.Evaluate(facts)) { /* ... */ }
+```
+
+Use these combinators to keep condition logic modular and testable.
+
 
 ## Examples
 

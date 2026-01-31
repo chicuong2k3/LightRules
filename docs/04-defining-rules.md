@@ -36,7 +36,7 @@ public interface IRule : IComparable<IRule>
     bool Evaluate(Facts facts);
 
     // Execute actions using the provided facts. Invoked when Evaluate returns true.
-    void Execute(Facts facts);
+    Facts Execute(Facts facts);
 }
 ```
 
@@ -102,21 +102,22 @@ LightRules provides a simple discovery helper:
 
 ### BasicRule, DefaultRule and Rules (programmatic helpers)
 
-- `BasicRule`: a small base implementation of `IRule` that provides `Name`, `Description`, `Priority`, and default no-op `Evaluate` / `Execute` implementations. Extend it when you want a simple rule base class.
-- `DefaultRule`: a convenient rule implementation that wraps an `ICondition` and a list of `IAction`. It evaluates the condition and runs all actions in order when the condition is true.
+- `BasicRule` — a small base implementation of `IRule` that provides `Name`, `Description`, `Priority`, and default no-op `Evaluate` / `Execute` implementations. Note: `Execute` now returns a `Facts` instance (functional style).
+
+- `DefaultRule` — a convenient rule implementation that wraps an `ICondition` and a list of `IAction`. It evaluates the condition and runs all actions in order when the condition is true; actions return new `Facts` instances which are threaded forward.
 
 - `Rules`: a collection that holds and orders rules. Rules are ordered by `Priority` (ascending) and then by `Name` (ordinal, case-insensitive). `Rules` provides registration and unregistration helpers.
 
 ## Examples
 
-1) Attribute-based rule (declarative)
+1) Attribute-based rule (declarative POCO - recommended)
 
 ```csharp
 using LightRules.Attributes;
 using LightRules.Core;
 
-[Rule("OrderPositiveRule", Priority = 10, Description = "Fires when order quantity is positive", Enabled = true, Tags = new[] { "orders", "validation" })]
-public class OrderPositiveRule : IRule
+[Rule(Name = "OrderPositiveRule", Description = "Fires when order quantity is positive", Priority = 10)]
+public class OrderPositiveRule
 {
     [Condition]
     public bool Check([Fact("quantity")] int quantity)
@@ -124,28 +125,13 @@ public class OrderPositiveRule : IRule
         return quantity > 0;
     }
 
-    [Action(1)]
-    public void OnSuccess(Facts facts)
+    [Action(Order = 1)]
+    public Facts OnSuccess(Facts facts)
     {
-        facts.Set("orderAccepted", true);
-    }
-
-    // IRule metadata and simple delegation
-    public string Name => "OrderPositiveRule";
-    public string Description => "Fires when order quantity is positive";
-    public int Priority => 10;
-
-    public bool Evaluate(Facts facts)
-    {
-        // Inline binding example (a real injector would do this automatically)
-        return facts.TryGetValue<int>("quantity", out var q) && Check(q);
-    }
-
-    public void Execute(Facts facts)
-    {
-        OnSuccess(facts);
+        return facts.Set("orderAccepted", true);
     }
 }
+// The source generator produces OrderPositiveRule_RuleAdapter implementing IRule
 ```
 
 2) Programmatic rule using `DefaultRule`
@@ -186,18 +172,20 @@ foreach (var meta in metas)
     ruleInstances.Add(instance);
 }
 
-// Evaluate/execute loop with Facts
+// Evaluate/execute loop with Facts (functional style)
 var facts = new Facts();
-facts.Set("quantity", 5);
+facts = facts.Set("quantity", 5);
 
 var rulesCollection = new Rules(ruleInstances);
+var currentFacts = facts;
 foreach (var r in rulesCollection)
 {
-    if (r.Evaluate(facts))
+    if (r.Evaluate(currentFacts))
     {
-        r.Execute(facts);
+        currentFacts = r.Execute(currentFacts);
     }
 }
+// currentFacts now contains all updates made by executed rules
 ```
 
 ## Best practices and notes

@@ -69,17 +69,20 @@ Example (end-to-end minimal):
 ```csharp
 var rules = new Rules(); // populate with discovered or programmatic rules
 var facts = new Facts();
-facts.Set("quantity", 5);
+facts = facts.Set("quantity", 5);
 
 var parameters = new RulesEngineParameters().WithSkipOnFirstAppliedRule(true);
 var engine = new DefaultRulesEngine(parameters);
 
-engine.Fire(rules, facts);
+// Fire returns the final Facts instance after all rules execute
+var finalFacts = engine.Fire(rules, facts);
+Console.WriteLine($"Final facts: {finalFacts}");
 ```
 
 ## Behavior notes and troubleshooting
 
-- Facts mutation: engines do not snapshot facts by default. If your actions mutate `Facts`, those changes are visible to subsequent rule evaluations within the same engine run.
-- Priority threshold: rules with `Priority` greater than the configured `WithPriorityThreshold` value are skipped  use this to limit execution to high-priority rules only.
-- Listener exceptions: behavior when listeners throw depends on engine design. Prefer catching errors inside listeners to avoid affecting engine execution.
-- Iterative engines: `InferenceRulesEngine` may call engine-level listeners multiple times for each iteration; if you rely on call counts correlate iterations explicitly.
+- **Immutable Facts**: `Facts` is now immutable. Actions return a new `Facts` instance, and the engine threads the returned instance forward to subsequent rules.
+- **Engine return value**: `engine.Fire(rules, facts)` returns the final `Facts` instance after all rules have executed. Capture this if you need to inspect results.
+- **Priority threshold**: rules with `Priority` greater than the configured `WithPriorityThreshold` value are skipped — use this to limit execution to high-priority rules only.
+- **Listener exceptions**: behavior when listeners throw depends on engine design. Prefer catching errors inside listeners to avoid affecting engine execution.
+- **Iterative engines**: `InferenceRulesEngine` may call engine-level listeners multiple times for each iteration; if you rely on call counts, correlate iterations explicitly.

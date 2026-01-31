@@ -71,27 +71,28 @@ dotnet build LightRules.sln
 
 This builds the runtime project and runs the source generator (if configured for your project) to produce adapters for attribute-based rules.
 
-## Quick Start
+## Quick Start (updated for immutable Facts)
 
 1. Create or discover rules:
-   - Programmatic: create `DefaultRule` or implement `IRule`.
-   - Attribute-based: add POCO classes annotated with `Rule`, `Condition`, `Action`, `Fact` and build; the generator emits adapters.
+   - Programmatic: implement `IRule` (note: `Execute` now returns `Facts`) or use `DefaultRule`.
+   - Attribute-based: annotate POCOs and build (the source generator will emit adapters). The generator supports legacy void actions for compatibility.
 
-2. Create and populate a `Facts` bag:
+2. Create and populate an immutable `Facts` instance (use fluent `Set` to return a new instance):
 
 ```csharp
 var facts = new Facts();
-facts.Set("quantity", 5);
+facts = facts.Set("quantity", 5);
 ```
 
-3. Build a `Rules` collection and run the engine:
+3. Build and run the engine:
 
 ```csharp
-var rules = new Rules(/* add IRule instances */);
-var parameters = new RulesEngineParameters().WithSkipOnFirstAppliedRule(true);
-var engine = new DefaultRulesEngine(parameters);
-engine.Fire(rules, facts);
+var rules = new Rules(/* discovered or programmatic */);
+var engine = new DefaultRulesEngine();
+var finalFacts = engine.Fire(rules, facts);
 ```
+
+Migration note: this release introduces breaking API changes — `Facts` is now immutable and `IAction.Execute` and `IRule.Execute` return a `Facts` instance. The generator provides compatibility for legacy void actions; see the docs `docs/defining-rules-attribute-based.md` and `docs/defining-actions.md` for migration tips.
 
 4. Example: attribute-based discovery and adapter instantiation (very small example):
 

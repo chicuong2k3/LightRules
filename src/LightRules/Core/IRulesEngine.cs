@@ -22,8 +22,9 @@ namespace LightRules.Core
 
         /// <summary>
         /// Fire all registered rules on the given facts according to engine parameters.
+        /// Returns the final Facts instance after execution.
         /// </summary>
-        void Fire(Rules rules, Facts facts);
+        Facts Fire(Rules rules, Facts facts);
 
         /// <summary>
         /// Evaluate rules without firing them. Returns a map from rule to evaluation result.

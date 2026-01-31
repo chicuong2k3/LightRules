@@ -6,24 +6,27 @@ namespace LightRules.Core
     /// </summary>
     public sealed class DefaultRulesEngine : AbstractRulesEngine
     {
-        public DefaultRulesEngine() : base() { }
+        public DefaultRulesEngine() { }
         public DefaultRulesEngine(RulesEngineParameters parameters) : base(parameters) { }
 
-        public override void Fire(Rules rules, Facts facts)
+        public override Facts Fire(Rules rules, Facts facts)
         {
             ArgumentNullException.ThrowIfNull(rules);
             ArgumentNullException.ThrowIfNull(facts);
             TriggerListenersBeforeRules(rules, facts);
-            DoFire(rules, facts);
-            TriggerListenersAfterRules(rules, facts);
+            var final = DoFire(rules, facts);
+            TriggerListenersAfterRules(rules, final);
+            return final;
         }
 
-        private void DoFire(Rules rules, Facts facts)
+        private Facts DoFire(Rules rules, Facts facts)
         {
             if (rules.IsEmpty)
             {
-                return;
+                return facts;
             }
+
+            var currentFacts = facts;
 
             foreach (var rule in rules)
             {
@@ -34,7 +37,7 @@ namespace LightRules.Core
                     break;
                 }
 
-                if (!ShouldBeEvaluated(rule, facts))
+                if (!ShouldBeEvaluated(rule, currentFacts))
                 {
                     continue;
                 }
@@ -42,11 +45,12 @@ namespace LightRules.Core
                 var evaluationResult = false;
                 try
                 {
-                    evaluationResult = rule.Evaluate(facts);
+                    // Evaluate against a snapshot to prevent conditions from mutating the shared Facts instance
+                    evaluationResult = rule.Evaluate(currentFacts.Clone());
                 }
                 catch (Exception ex)
                 {
-                    TriggerListenersOnEvaluationError(rule, facts, ex);
+                    TriggerListenersOnEvaluationError(rule, currentFacts, ex);
                     if (Parameters.SkipOnFirstNonTriggeredRule)
                     {
                         break;
@@ -55,12 +59,13 @@ namespace LightRules.Core
 
                 if (evaluationResult)
                 {
-                    TriggerListenersAfterEvaluate(rule, facts, true);
+                    TriggerListenersAfterEvaluate(rule, currentFacts, true);
                     try
                     {
-                        TriggerListenersBeforeExecute(rule, facts);
-                        rule.Execute(facts);
-                        TriggerListenersOnSuccess(rule, facts);
+                        TriggerListenersBeforeExecute(rule, currentFacts);
+                        // Execute returns the (possibly) new Facts instance
+                        currentFacts = rule.Execute(currentFacts);
+                        TriggerListenersOnSuccess(rule, currentFacts);
                         if (Parameters.SkipOnFirstAppliedRule)
                         {
                             break;
@@ -68,7 +73,7 @@ namespace LightRules.Core
                     }
                     catch (Exception ex)
                     {
-                        TriggerListenersOnFailure(rule, facts, ex);
+                        TriggerListenersOnFailure(rule, currentFacts, ex);
                         if (Parameters.SkipOnFirstFailedRule)
                         {
                             break;
@@ -77,13 +82,15 @@ namespace LightRules.Core
                 }
                 else
                 {
-                    TriggerListenersAfterEvaluate(rule, facts, false);
+                    TriggerListenersAfterEvaluate(rule, currentFacts, false);
                     if (Parameters.SkipOnFirstNonTriggeredRule)
                     {
                         break;
                     }
                 }
             }
+
+            return currentFacts;
         }
 
         public override IDictionary<IRule, bool> Check(Rules rules, Facts facts)
@@ -98,22 +105,23 @@ namespace LightRules.Core
 
         private IDictionary<IRule, bool> DoCheck(Rules rules, Facts facts)
         {
-            var result = new Dictionary<IRule, bool>();
+            var results = new Dictionary<IRule, bool>();
+            var currentFacts = facts;
             foreach (var rule in rules)
             {
-                if (ShouldBeEvaluated(rule, facts))
+                if (ShouldBeEvaluated(rule, currentFacts))
                 {
                     try
                     {
-                        result[rule] = rule.Evaluate(facts);
+                        results[rule] = rule.Evaluate(currentFacts.Clone());
                     }
                     catch
                     {
-                        result[rule] = false;
+                        results[rule] = false;
                     }
                 }
             }
-            return result;
+            return results;
         }
 
         private void TriggerListenersOnFailure(IRule rule, Facts facts, Exception exception)

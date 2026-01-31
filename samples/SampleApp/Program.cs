@@ -91,17 +91,18 @@ class Program
         Console.WriteLine($"\nInstantiated {rules.Count} IRule instances.\n");
 
         var facts = new Facts();
-        facts.Set("orderTotal", 1500m);
-        facts.Set("orderId", "ORD-123");
+        facts = facts.Set("orderTotal", 1500m);
+        facts = facts.Set("orderId", "ORD-123");
 
         Console.WriteLine("Facts before running rules: " + facts);
 
         var rulesCollection = new Rules(rules);
         var engine = new DefaultRulesEngine();
 
-        engine.Fire(rulesCollection, facts);
+        // engine.Fire now returns the final Facts instance after execution
+        var finalFacts = engine.Fire(rulesCollection, facts);
 
-        Console.WriteLine("\nFacts after running rules: " + facts);
+        Console.WriteLine("\nFacts after running rules: " + finalFacts);
         Console.WriteLine("\nFinished running sample rules.");
     }
 }

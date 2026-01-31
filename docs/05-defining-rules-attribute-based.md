@@ -17,13 +17,15 @@ How it works (high-level)
 
 Attributes
 
-- `[Rule(Name = "MyRule", Description = "...")]`  mark a class as a rule. `Name` and `Description` are optional.
-- `[Condition]`  annotate a single method that returns `bool` (the rule condition).
-- `[Action(Order = 1)]`  annotate one or more `void` methods to execute when the condition is true. `Order` controls execution order; the default is 0.
-- `[Fact("factName")]`  annotate a method parameter to indicate which fact name to inject; if omitted, the parameter name is used.
-- `[Priority]`  optional method returning `int` to compute priority dynamically.
+- `[Rule(Name = "MyRule", Description = "...")]` — mark a class as a rule. `Name` and `Description` are optional.
+- `[Condition]` — annotate a single method that returns `bool` (the rule condition).
+- `[Action(Order = 1)]` — annotate one or more methods to execute when the condition is true. Methods may either:
+  - Return `Facts` (functional style): the returned `Facts` instance becomes the current facts for subsequent rules; or
+  - Be `void` methods (legacy): the generator supports these for compatibility and the adapter will invoke them — prefer returning `Facts` for new code.
+- `[Fact("factName")]` — annotate a method parameter to indicate which fact name to inject; if omitted, the parameter name is used.
+- `[Priority]` — optional method returning `int` to compute priority dynamically.
 
-Example POCO rule
+Example POCO rule (functional style)
 
 ```csharp
 using LightRules.Attributes;
@@ -32,25 +34,27 @@ using LightRules.Attributes;
 public class HighValueOrderRule
 {
     [Condition]
-    public bool IsHighValue([Fact("orderTotal")] decimal total)
-    {
-        return total >= 1000m;
-    }
+    public bool IsHighValue([Fact("orderTotal")] decimal total) => total >= 1000m;
 
     [Action(Order = 1)]
-    public void ApplyDiscount([Fact("orderId")] string id)
+    public Facts ApplyDiscount([Fact("orderId")] string id, Facts facts)
     {
-        // do something - note: generated adapter calls this directly
+        // return a new Facts instance with the discount flag set
+        return facts.Set("discountApplied", true);
     }
 }
 ```
 
+Generator compatibility note
+
+- The generator recognizes both legacy `void` actions and the new `Facts`-returning actions. When you have legacy `void` methods, the adapter will call them (and wrappers may run them against a mutable builder internally) so existing POCOs remain functional. Prefer returning `Facts` for clarity and immutability.
+
 What the generator emits (conceptual)
 
 - `HighValueOrderRule_RuleAdapter : IRule` with direct calls:
-  - `bool Evaluate(Facts facts)`  binds `total` using `facts.TryGetValue<decimal>("orderTotal", out var total)` and calls `_target.IsHighValue(total)`.
-  - `void Execute(Facts facts)`  binds `id` and calls `_target.ApplyDiscount(id)`.
-  - `string Name { get; }` and other metadata.
+  - `bool Evaluate(Facts facts)` binds `total` using `facts.TryGetValue<decimal>("orderTotal", out var total)` and calls `_target.IsHighValue(total)`.
+  - `Facts Execute(Facts facts)` binds parameters, calls action methods in order, and returns the final `Facts` instance.
+  - `string Name { get; }`, `string Description { get; }`, `int Priority { get; }` and other metadata.
 
 Discovery and registration
 
@@ -84,7 +88,7 @@ Migration notes
 Tips & caveats
 
 - The generator emits warnings for unsupported parameter shapes. Keep rule method signatures simple: parameters should either be annotated with `[Fact]` or be a single `Facts` parameter.
-- Generated adapters are ordinary C# code  you can view them in your IDE under the generated sources node or in build artifacts.
+- Generated adapters are ordinary C# code, you can view them in your IDE under the generated sources node or in build artifacts.
 
 Next steps / Extensions
 

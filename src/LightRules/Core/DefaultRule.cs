@@ -39,12 +39,14 @@ namespace LightRules.Core
         /// Execute the configured actions in order using the provided facts.
         /// </summary>
         /// <param name="facts">Execution facts.</param>
-        public override void Execute(Facts facts)
+        public override Facts Execute(Facts facts)
         {
+            var current = facts;
             foreach (var action in _actions)
             {
-                action.Execute(facts);
+                current = action.Execute(current);
             }
+            return current;
         }
     }
 }

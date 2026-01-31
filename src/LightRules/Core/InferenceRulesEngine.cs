@@ -21,20 +21,23 @@ namespace LightRules.Core
             _delegate = new DefaultRulesEngine(parameters);
         }
 
-        public override void Fire(Rules rules, Facts facts)
+        public override Facts Fire(Rules rules, Facts facts)
         {
             ArgumentNullException.ThrowIfNull(rules);
             ArgumentNullException.ThrowIfNull(facts);
 
+            var currentFacts = facts;
             IEnumerable<IRule> selectedRules;
             do
             {
-                selectedRules = SelectCandidates(rules, facts).ToList();
+                selectedRules = SelectCandidates(rules, currentFacts).ToList();
                 if (selectedRules.Any())
                 {
-                    _delegate.Fire(new Rules(selectedRules), facts);
+                    currentFacts = _delegate.Fire(new Rules(selectedRules), currentFacts);
                 }
             } while (selectedRules.Any());
+
+            return currentFacts;
         }
 
         private IEnumerable<IRule> SelectCandidates(Rules rules, Facts facts)

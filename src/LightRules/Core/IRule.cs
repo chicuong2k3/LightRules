@@ -44,9 +44,9 @@ public interface IRule : IComparable<IRule>
     bool Evaluate(Facts facts);
 
     /// <summary>
-    /// Execute the actions associated with this rule using the provided facts. This
-    /// method is invoked when <see cref="Evaluate(Facts)"/> returns <c>true</c>.
+    /// Execute the actions associated with this rule using the provided facts and return
+    /// the resulting Facts instance to be used by subsequent rules.
     /// </summary>
     /// <param name="facts">Facts known at the time of execution.</param>
-    void Execute(Facts facts);
+    Facts Execute(Facts facts);
 }

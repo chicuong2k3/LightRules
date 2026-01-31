@@ -69,9 +69,10 @@ namespace LightRules.Core
         /// Execute the rule actions. Default implementation is a no-op. Override in subclasses.
         /// </summary>
         /// <param name="facts">Execution facts.</param>
-        public virtual void Execute(Facts facts)
+        public virtual Facts Execute(Facts facts)
         {
-            // no-op
+            // no-op -> return the original facts unchanged
+            return facts;
         }
 
         /// <summary>
