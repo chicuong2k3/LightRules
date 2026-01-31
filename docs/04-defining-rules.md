@@ -1,15 +1,23 @@
 # Defining Rules
 
+<!-- Table of contents -->
+- [Overview](#overview)
+- [How to define rules](#how-to-define-rules)
+- [Attribute-driven (declarative)](#how-to-define-rules)
+- [Discovery](#discovery)
+- [Examples](#examples)
+- [Best practices and notes](#best-practices-and-notes)
+
 This document explains how to define rules in LightRules, the available APIs and attributes, how rules are discovered, and simple examples for beginners. It assumes no prior knowledge of rule engines.
 
 ## Overview
 
 A rule is a named piece of business logic that can be evaluated against a set of facts and, when its conditions hold, perform actions. A rule typically contains:
-- Name  a unique identifier within a rules collection.
-- Description  a human-friendly summary of what the rule does.
-- Priority  an ordering value used when multiple rules are evaluated; lower numbers run first.
-- Conditions  predicates evaluated against the current facts to decide whether the rule should fire.
-- Actions  operations executed when a rule fires; actions may mutate facts or cause side effects.
+- Name: a unique identifier within a rules collection.
+- Description: a human-friendly summary of what the rule does.
+- Priority: an ordering value used when multiple rules are evaluated; lower numbers run first.
+- Conditions: predicates evaluated against the current facts to decide whether the rule should fire.
+- Actions: operations executed when a rule fires; actions may mutate facts or cause side effects.
 
 In LightRules a rule is represented by the `IRule` interface:
 
@@ -41,7 +49,9 @@ There are two common approaches:
 1. Attribute-driven (declarative): decorate a POCO that implements `IRule` with attributes that mark condition and action methods. A discovery + injector component can then build and invoke rules automatically.
 2. Programmatic: implement `IRule` (or use helper classes like `BasicRule` / `DefaultRule`) and register instances with the `Rules` collection.
 
-### Attribute-driven (declarative)  source-generator (recommended)
+### Attribute-driven (declarative) source-generator (recommended)
+
+<a name="attribute-driven-declarative"></a>
 
 LightRules supports a generator-backed attribute approach: write plain POCO rule classes annotated with `Rule`, `Condition`, `Action`, `Fact`, and `Priority` attributes and let the source generator produce high-performance adapters at compile time.
 
@@ -92,11 +102,10 @@ LightRules provides a simple discovery helper:
 
 ### BasicRule, DefaultRule and Rules (programmatic helpers)
 
-- `BasicRule`  a small base implementation of `IRule` that provides `Name`, `Description`, `Priority`, and default no-op `Evaluate` / `Execute` implementations. Extend it when you want a simple rule base class.
+- `BasicRule`: a small base implementation of `IRule` that provides `Name`, `Description`, `Priority`, and default no-op `Evaluate` / `Execute` implementations. Extend it when you want a simple rule base class.
+- `DefaultRule`: a convenient rule implementation that wraps an `ICondition` and a list of `IAction`. It evaluates the condition and runs all actions in order when the condition is true.
 
-- `DefaultRule`  a convenient rule implementation that wraps an `ICondition` and a list of `IAction`. It evaluates the condition and runs all actions in order when the condition is true.
-
-- `Rules`  a collection that holds and orders rules. Rules are ordered by `Priority` (ascending) and then by `Name` (ordinal, case-insensitive). `Rules` provides registration and unregistration helpers.
+- `Rules`: a collection that holds and orders rules. Rules are ordered by `Priority` (ascending) and then by `Name` (ordinal, case-insensitive). `Rules` provides registration and unregistration helpers.
 
 ## Examples
 
@@ -194,13 +203,7 @@ foreach (var r in rulesCollection)
 ## Best practices and notes
 
 - Prefer `Facts.TryGetValue<T>` when reading facts in conditions to avoid invalid cast exceptions.
-- Keep conditions side-effect free. Actions are the place to mutate facts or call external systems.
+- Keep conditions side effect free. Actions are the place to mutate facts or call external systems.
 - Mutating `Facts` inside actions affects subsequent rules in the same run  LightRules engines do not snapshot facts by default. If you need isolation, clone the `Facts` instance before firing rules or use a custom executor.
 - Use `ActionAttribute(Order = n)` to express action ordering when multiple methods exist on a rule (discovery/invoker must respect this).
 - Use `RuleDiscovery` for simple discovery; if you need method/parameter binding create or reuse a small injector that reads attributes and invokes methods.
-
-## Where to look next
-
-- `docs/defining-facts.md`  facts API and examples.
-- `docs/defining-conditions.md`  writing condition logic and patterns.
-- `docs/defining-actions.md`  writing actions, ordering, and side-effect guidance.

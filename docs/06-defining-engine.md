@@ -1,15 +1,20 @@
 # Defining Engine Parameters and Listeners
 
+<!-- Table of contents -->
+- [Engine parameters](#engine-parameters)
+- [Listeners](#listeners)
+- [Order and typical usage](#order-and-typical-usage)
+
 This document describes the engine-level parameters and listener interfaces used by LightRules. It explains how to configure execution behavior via `RulesEngineParameters` and how to observe engine lifecycle events using listeners.
 
 ## Engine parameters
 
 `RulesEngineParameters` controls execution shortcuts and thresholds used by rule engines. The class exposes the following properties:
 
-- `SkipOnFirstAppliedRule`  if true, stop evaluating further applicable rules as soon as one rule is applied.
-- `SkipOnFirstNonTriggeredRule`  if true, stop when a rule is not triggered.
-- `SkipOnFirstFailedRule`  if true, stop when a rule throws/fails.
-- `PriorityThreshold`  skip rules whose priority exceeds this threshold (default: no threshold).
+- `SkipOnFirstAppliedRule`: if true, stop evaluating further applicable rules as soon as one rule is applied.
+- `SkipOnFirstNonTriggeredRule`: if true, stop when a rule is not triggered.
+- `SkipOnFirstFailedRule`: if true, stop when a rule throws/fails.
+- `PriorityThreshold`: skip rules whose priority exceeds this threshold (default: no threshold).
 
 Example:
 
@@ -28,8 +33,8 @@ Listeners let you observe and react to engine events:
 
 `IRulesEngineListener` methods:
 
-- `BeforeEvaluate(Rules rules, Facts facts)`  invoked before evaluating the provided rule set. For iterative engines this may be invoked many times (once per candidate set).
-- `AfterExecute(Rules rules, Facts facts)`  invoked after executing the provided rule set.
+- `BeforeEvaluate(Rules rules, Facts facts)`: invoked before evaluating the provided rule set. For iterative engines this may be invoked many times (once per candidate set).
+- `AfterExecute(Rules rules, Facts facts)`: invoked after executing the provided rule set.
 
 Example listener:
 

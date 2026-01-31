@@ -1,5 +1,11 @@
 # Defining Facts
 
+- [What is a fact?](#what-is-a-fact)
+- [The `Facts` collection](#the-facts-collection)
+- [Using facts inside conditions and actions](#using-facts-inside-conditions-and-actions)
+- [Examples (common operations)](#examples-common-operations)
+- [FAQ](#frequently-asked-questions-beginner-friendly)
+
 This document explains what a "fact" is in LightRules, how facts are stored and accessed, and how you typically use them when writing rules. It is written for beginners and assumes no prior experience with rule engines.
 
 ## What is a fact?
@@ -17,26 +23,7 @@ Facts are identified by their name. Names must be unique inside a `Facts` collec
 
 `Facts` is the collection type used by the rules engine to store and pass facts around. It behaves like a small, named dictionary of facts with convenience helpers for typed access.
 
-Key behavior and API (summary):
-
-- Uniqueness: fact names are unique inside a `Facts` instance. Adding/setting a fact with an existing name replaces the previous value.
-- Indexer: `facts["name"]` gets or sets a fact value as `object?`. Setting the indexer to `null` removes the fact.
-- Set: `Set<T>(string name, T value)` adds or replaces a `Fact<T>` (throws if `value` is null).
-- Add: `Add(Fact)` / `Add<T>(Fact<T>)` add facts; existing facts with the same name are replaced.
-- Get<T>: `Get<T>(string name)` returns `default(T)` if the fact does not exist; if the fact exists it casts the stored runtime value to `T` and returns it (an invalid cast will throw at runtime).
-- TryGetValue<T>: `TryGetValue<T>(string name, out T? value)` returns `true` only when the fact exists and its runtime value is assignable to `T`.
-- GetFact / TryGetFact: access the raw `Fact` object stored in the collection.
-- TryGetFact<T>: attempt to retrieve a `Fact<T>`; if the stored fact is non-generic but its value is assignable to `T`, a typed copy is returned.
-- ToDictionary: returns a shallow copy of facts as a `Dictionary<string, object?>`.
-- Enumeration: `Facts` implements `IEnumerable<Fact>` so you can iterate over stored facts.
-- Clear / Remove: methods to remove facts.
-
-## Why both `Fact` and `Fact<T>`?
-
-- The non-generic `Fact` provides a uniform container the `Facts` collection can hold without losing the actual runtime value. It avoids the need to keep separate typed collections for different value types.
-- `Fact<T>` provides compile-time type safety when you know the value type. The collection stores both kinds; helper methods (`TryGetFact<T>`, `TryGetValue<T>`) bridge between them.
-
-Having both types makes the API flexible: rules can work with strongly-typed facts when appropriate, and the engine/framework can still store arbitrary values.
+For a concise API reference (methods, behaviors and quick notes) see the dedicated API page: `docs/10-facts-api.md`.
 
 ## Using facts inside conditions and actions
 
@@ -134,8 +121,4 @@ Q: "What happens if I try to get a fact with the wrong type?"
 A: `Get<T>` attempts a cast and will throw an exception if the stored runtime value is not assignable to `T`. Use `TryGetValue<T>` to safely test and retrieve typed values.
 
 Q: "Is the fact name comparison case-sensitive?"
-A: Yes  `Facts` uses an ordinal (case-sensitive) comparison when matching names. Be consistent with your fact naming.
-
-## Where to look next
-
-- Check the `docs/defining-rules.md` document for how rules are written and how conditions and actions bind to facts.
+A: Yes, `Facts` uses an ordinal (case-sensitive) comparison when matching names. Be consistent with your fact naming.

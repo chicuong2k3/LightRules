@@ -4,11 +4,9 @@ Overview
 
 This project supports an attribute-based approach to define rules: write simple POCO classes annotated with provided attributes (`[Rule]`, `[Condition]`, `[Action]`, `[Fact]`, `[Priority]`) and let the source generator produce high-performance adapters at compile time.
 
-Why attribute-based + source generator?
-
-- Developer ergonomics: rules are plain classes with attributes; you don't need to implement `IRule` or write boilerplate adapter code.
-- Performance & AOT-friendliness: the generator emits concrete adapter classes that call rule methods directly and bind facts using typed calls. There is no runtime reflection (no MethodInfo.Invoke, no assembly scanning), which is crucial for Native AOT and trimming scenarios.
-- Strong typing: the generator emits typed fact binding (using `Facts.TryGetValue<T>`), so parameter types are checked at compile time and generated code is efficient.
+- Why use this approach?
+  - Developer ergonomics: write plain classes with attributes and avoid boilerplate adapter code.
+  - Performance & AOT-friendliness: generated adapters call rule methods directly without runtime reflection, making them efficient and trim-friendly.
 
 How it works (high-level)
 

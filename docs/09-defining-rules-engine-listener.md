@@ -1,12 +1,20 @@
 # Engine-level listeners (IRulesEngineListener)
 
+<!-- Table of contents -->
+- [Overview](#overview)
+- [Interface summary](#interface-summary)
+- [Key methods](#key-methods)
+- [Examples](#examples)
+- [Registering engine listeners](#registering-engine-listeners)
+- [Best practices and caveats](#best-practices-and-caveats)
+
 This document explains the `IRulesEngineListener` interface, how engine-level listeners work, when they are invoked, and how to register them with a rules engine.
 
-Overview
+## Overview
 
 `IRulesEngineListener` provides hooks to observe the lifecycle of a rules engine execution at the granularity of a whole rule set. These listeners are invoked before a ruleset is evaluated and after the ruleset has been executed. They are useful for tasks such as logging, metrics, preparing or validating facts before execution, or triggering post-run actions.
 
-Interface summary
+## Interface summary
 
 ```csharp
 public interface IRulesEngineListener
@@ -16,7 +24,7 @@ public interface IRulesEngineListener
 }
 ```
 
-Key methods
+## Key methods
 
 - `BeforeEvaluate(Rules rules, Facts facts)`
   - Called once before the engine evaluates the provided `rules` against the supplied `facts`.
@@ -27,7 +35,7 @@ Key methods
   - Called after the engine completed executing the ruleset. If the engine iterates multiple times (inference engine), it may be called after each executed candidate set; check concrete engine behavior.
   - Use this to stop timers, record metrics, or persist final facts/state.
 
-Example: simple logging engine listener
+## Examples: simple logging engine listener
 
 ```csharp
 public class SimpleEngineListener : IRulesEngineListener
@@ -44,7 +52,7 @@ public class SimpleEngineListener : IRulesEngineListener
 }
 ```
 
-Registering engine listeners
+## Registering engine listeners
 
 If you use `DefaultRulesEngine` or `InferenceRulesEngine` (both inherit from `AbstractRulesEngine`), register listeners via provided registration methods:
 
@@ -58,21 +66,16 @@ engine.RegisterRulesEngineListeners(new[] { new SimpleEngineListener(), new Anot
 
 Multiple listeners can be registered; the engine will invoke each in registration order.
 
-Best practices and caveats
+## Best practices and caveats
 
 - Keep listeners lightweight: `BeforeEvaluate`/`AfterExecute` run on the engine thread and should not block long-running I/O. Offload heavy work to background tasks if needed.
 - Avoid mutating `Facts` inside engine-level listeners unless you understand the effect on subsequent rule evaluation.
 - Be mindful of inference engines: `BeforeEvaluate`/`AfterExecute` may be invoked multiple times; use a correlation id if you want to tie together iterations.
 - Exceptions thrown from listeners may affect engine execution depending on the engine implementation. Prefer catching/logging exceptions inside the listener.
 
-When to use engine listeners
+## When to use engine listeners
 
 - Collecting per-run metrics (latency, applied rules count).
 - Auditing rule execution over time.
 - Preparing or validating a `Facts` bag (enriching it before evaluation).
 - Clearing or persisting state after a run.
-
-See also
-
-- `docs/defining-rules-engine.md`  engine parameters and general engine usage.
-- `docs/defining-rules-listener.md`  per-rule listeners (`IRuleListener`) for fine-grained rule-level events.

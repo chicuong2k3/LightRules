@@ -1,12 +1,21 @@
 # Defining Actions
 
+<!-- Table of contents -->
+- [What is an Action?](#what-is-an-action)
+- [Key semantics](#key-semantics)
+- [Implementing an action](#implementing-an-action)
+- [Parameter binding with attribute-based actions](#parameter-binding-with-attribute-based-actions)
+- [Best practices](#best-practices)
+- [Examples](#examples)
+- [Troubleshooting / FAQ](#troubleshooting--faq)
+
 This document explains what an "action" is in LightRules. It is written for beginners 
 and assumes no prior knowledge of rule engines.
 
 ## What is an Action?
 
 An Action is the piece of code executed when a rule fires (i.e., when its condition evaluated to `true`). 
-Actions perform work such as changing facts, triggering side-effects (logging, sending messages, updating data stores), or invoking other services.
+Actions perform work such as changing facts, triggering side effects (logging, sending messages, updating data stores), or invoking other services.
 
 In LightRules the Action abstraction is represented by the `IAction` interface and the `Actions` static helper:
 
@@ -127,7 +136,7 @@ Note: The actual `Order` attribute and enforcement may vary depending on the rul
 
 ## Troubleshooting / FAQ
 
-Q: My action throws  what happens?
+Q: My action throws, what happens?
 A: Engine behavior is implementation-specific. Common policies: propagate the exception, log and continue, or stop rule execution. Review your executor or add a wrapper action that handles exceptions.
 
 Q: Can actions run asynchronously?
@@ -135,9 +144,3 @@ A: The core `IAction.Execute(Facts)` is synchronous. If you need asynchronous wo
 
 Q: Should I call external services directly from an action?
 A: It's common but consider abstraction and testability. Prefer injecting service clients and keep actions thin wrappers that orchestrate calls.
-
-## Where to look next
-
-- `docs/defining-facts.md`  how facts are stored and accessed.
-- `docs/defining-conditions.md`  guides for writing conditions.
-- `docs/defining-rules.md`  how to combine conditions and actions into rules and how discovery works.

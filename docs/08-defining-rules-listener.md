@@ -1,12 +1,20 @@
 # Per-rule listeners (IRuleListener)
 
+<!-- Table of contents -->
+- [Overview](#overview)
+- [Interface summary](#interface-summary)
+- [Method semantics](#method-semantics)
+- [Examples](#examples)
+- [Registering rule listeners](#registering-rule-listeners)
+- [Best practices](#best-practices)
+
 This document describes the `IRuleListener` interface and how to use per-rule listeners to observe and react to events that occur while a specific rule is evaluated and executed.
 
-Overview
+## Overview
 
 `IRuleListener` provides hooks at the rule level: before/after condition evaluation, on evaluation errors, before execution, on success and on failure. Use per-rule listeners to implement custom logging, testing hooks, metrics per rule, retry or compensation strategies, and richer observability of rule behavior.
 
-Interface summary
+## Interface summary
 
 ```csharp
 public interface IRuleListener
@@ -21,7 +29,7 @@ public interface IRuleListener
 }
 ```
 
-Method semantics
+## Method semantics
 
 - `BeforeEvaluate(IRule rule, Facts facts)`
   - Called before a rule's condition is evaluated.
@@ -46,7 +54,7 @@ Method semantics
   - Called when executing the actions results in an exception.
   - Listeners can attempt compensating actions, report errors or collect diagnostics.
 
-Example: recording basic metrics per rule
+## Examples: recording basic metrics per rule
 
 ```csharp
 public class MetricsRuleListener : IRuleListener
@@ -74,7 +82,7 @@ public class MetricsRuleListener : IRuleListener
 }
 ```
 
-Registering rule listeners
+## Registering rule listeners
 
 `AbstractRulesEngine` provides helper methods to register one or more `IRuleListener` instances. For example:
 
@@ -86,21 +94,16 @@ engine.RegisterRuleListener(new MetricsRuleListener());
 engine.RegisterRuleListeners(new[] { new MetricsRuleListener(), new AnotherListener() });
 ```
 
-Best practices
+## Best practices
 
 - Keep listeners non-blocking and lightweight. Heavy I/O should be offloaded to background tasks.
 - Avoid mutating `Facts` as a side-effect in `BeforeEvaluate`/`AfterEvaluate` unless intentional; this can impact subsequent evaluations.
 - Use `BeforeEvaluate`'s boolean return value to implement dynamic skipping rules (for example based on runtime feature flags).
 - Catch and handle listener exceptions where appropriate; listener exceptions should not crash the engine unless intentionally designed to do so.
 
-Common uses
+## Common uses
 
 - Logging evaluation/execution traces for debugging or auditing.
 - Gathering per-rule metrics (times, success rates, error counts).
 - Integrating with distributed tracing to attach rule evaluation/execution spans.
 - Implementing custom retry/compensation policies tied to rule execution failures.
-
-See also
-
-- `docs/defining-rules-engine-listener.md` for engine-level listeners.
-- `docs/defining-rules.md` for rule definitions and discovery.
