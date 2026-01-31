@@ -1,21 +1,21 @@
 using System.Collections;
+using System.Collections.Immutable;
 
 namespace LightRules.Core;
 
 /// <summary>
-/// Immutable collection of named facts. All mutation-like methods return a new Facts instance.
-/// For migration compatibility a temporary <see cref="MutableFacts"/> builder is provided.
+/// Thread-safe immutable collection of named facts. All mutation methods return a new Facts instance.
 /// </summary>
 public sealed class Facts : IEnumerable<Fact>
 {
-    private readonly Dictionary<string, object?> _map;
+    private readonly ImmutableDictionary<string, object?> _map;
 
     public Facts()
     {
-        _map = new Dictionary<string, object?>(StringComparer.Ordinal);
+        _map = ImmutableDictionary<string, object?>.Empty.WithComparers(StringComparer.Ordinal);
     }
 
-    private Facts(Dictionary<string, object?> map)
+    private Facts(ImmutableDictionary<string, object?> map)
     {
         _map = map;
     }
@@ -32,9 +32,7 @@ public sealed class Facts : IEnumerable<Fact>
     {
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
         if (value == null) throw new ArgumentNullException(nameof(value));
-        var copy = new Dictionary<string, object?>(_map, StringComparer.Ordinal);
-        copy[name] = value;
-        return new Facts(copy);
+        return new Facts(_map.SetItem(name, value));
     }
 
     /// <summary>
@@ -43,11 +41,7 @@ public sealed class Facts : IEnumerable<Fact>
     public Facts Add<T>(Fact<T> fact)
     {
         ArgumentNullException.ThrowIfNull(fact);
-        var copy = new Dictionary<string, object?>(_map, StringComparer.Ordinal)
-        {
-            [fact.Name] = fact.Value
-        };
-        return new Facts(copy);
+        return new Facts(_map.SetItem(fact.Name, fact.Value));
     }
 
     /// <summary>
@@ -55,12 +49,8 @@ public sealed class Facts : IEnumerable<Fact>
     /// </summary>
     public Facts Add(Fact fact)
     {
-        if (fact == null) throw new ArgumentNullException(nameof(fact));
-        var copy = new Dictionary<string, object?>(_map, StringComparer.Ordinal)
-        {
-            [fact.Name] = fact.Value
-        };
-        return new Facts(copy);
+        ArgumentNullException.ThrowIfNull(fact);
+        return new Facts(_map.SetItem(fact.Name, fact.Value));
     }
 
     /// <summary>
@@ -70,9 +60,7 @@ public sealed class Facts : IEnumerable<Fact>
     {
         if (string.IsNullOrWhiteSpace(factName)) throw new ArgumentNullException(nameof(factName));
         if (!_map.ContainsKey(factName)) return this;
-        var copy = new Dictionary<string, object?>(_map, StringComparer.Ordinal);
-        copy.Remove(factName);
-        return new Facts(copy);
+        return new Facts(_map.Remove(factName));
     }
 
     /// <summary>
@@ -80,7 +68,7 @@ public sealed class Facts : IEnumerable<Fact>
     /// </summary>
     public Facts Remove(Fact fact)
     {
-        if (fact == null) throw new ArgumentNullException(nameof(fact));
+        ArgumentNullException.ThrowIfNull(fact);
         return Remove(fact.Name);
     }
 
@@ -89,7 +77,7 @@ public sealed class Facts : IEnumerable<Fact>
     /// </summary>
     public Facts Remove<T>(Fact<T> fact)
     {
-        if (fact == null) throw new ArgumentNullException(nameof(fact));
+        ArgumentNullException.ThrowIfNull(fact);
         return Remove(fact.Name);
     }
 
@@ -175,25 +163,19 @@ public sealed class Facts : IEnumerable<Fact>
     }
 
     /// <summary>
-    /// Create a shallow copy of the Facts collection. For immutables this returns the same instance.
+    /// Number of facts in the collection.
+    /// </summary>
+    public int Count => _map.Count;
+
+    /// <summary>
+    /// Check if a fact with the given name exists.
+    /// </summary>
+    public bool ContainsKey(string factName) => _map.ContainsKey(factName);
+
+    /// <summary>
+    /// Create a shallow copy of the Facts collection. Since Facts is immutable, returns the same instance.
     /// </summary>
     public Facts Clone() => this;
-
-    /// <summary>
-    /// Obtain a mutable builder for this Facts instance. Useful for compatibility with legacy Action&lt;Facts&gt; delegates.
-    /// </summary>
-    internal MutableFacts ToMutable()
-    {
-        return new MutableFacts(new Dictionary<string, object?>(_map, StringComparer.Ordinal));
-    }
-
-    /// <summary>
-    /// Create an immutable Facts instance from a MutableFacts builder.
-    /// </summary>
-    internal static Facts FromMutable(MutableFacts m)
-    {
-        return new Facts(new Dictionary<string, object?>(m.GetInternalMap(), StringComparer.Ordinal));
-    }
 
     /// <summary>
     /// Return an enumerator on the set of facts.
@@ -211,65 +193,5 @@ public sealed class Facts : IEnumerable<Fact>
     public override string ToString()
     {
         return "[" + string.Join(",", _map.Select(kv => kv.Key + "=" + kv.Value)) + "]";
-    }
-
-    // Mutable builder used internally for compatibility with legacy mutation-style delegates
-    internal sealed class MutableFacts
-    {
-        private readonly Dictionary<string, object?> _internal;
-        public MutableFacts(Dictionary<string, object?> map) { _internal = map; }
-        internal Dictionary<string, object?> GetInternalMap() => _internal;
-
-        public object? this[string name]
-        {
-            get => _internal.TryGetValue(name, out var v) ? v : null;
-            set
-            {
-                if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
-                if (value == null) _internal.Remove(name);
-                else _internal[name] = value;
-            }
-        }
-
-        public void Set<T>(string name, T value)
-        {
-            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
-            if (value == null) throw new ArgumentNullException(nameof(value));
-            _internal[name] = value;
-        }
-
-        public void Add<T>(Fact<T> fact)
-        {
-            if (fact == null) throw new ArgumentNullException(nameof(fact));
-            _internal[fact.Name] = fact.Value;
-        }
-
-        public void Add(Fact fact)
-        {
-            if (fact == null) throw new ArgumentNullException(nameof(fact));
-            _internal[fact.Name] = fact.Value;
-        }
-
-        public void Remove(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
-            _internal.Remove(name);
-        }
-
-        public T? Get<T>(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException(nameof(name));
-            if (_internal.TryGetValue(name, out var v)) return (T)v!;
-            return default;
-        }
-
-        public bool TryGetValue<T>(string name, out T? value)
-        {
-            value = default;
-            if (string.IsNullOrWhiteSpace(name)) return false;
-            if (!_internal.TryGetValue(name, out var v) || v == null) return false;
-            if (v is T t) { value = t; return true; }
-            return false;
-        }
     }
 }

@@ -2,12 +2,13 @@
 
 <!-- Table of contents -->
 - [What is an Action?](#what-is-an-action)
-- [Key semantics](#key-semantics)
 - [Implementing an action](#implementing-an-action)
-- [Parameter binding with attribute-based actions](#parameter-binding-with-attribute-based-actions)
+- [Parameter binding](#parameter-binding)
+- [Multiple actions with ordering](#multiple-actions-with-ordering)
+- [Async actions](#async-actions)
 - [Best practices](#best-practices)
-- [Examples](#examples)
-- [Troubleshooting / FAQ](#troubleshooting--faq)
+- [Error handling](#error-handling)
+- [FAQ](#faq)
 
 ## What is an Action?
 
@@ -19,21 +20,15 @@ In LightRules the Action abstraction is represented by the `IAction` interface:
 ```csharp
 public interface IAction
 {
-    // Execute the action and return the Facts instance to use for subsequent rules.
     Facts Execute(Facts facts);
 }
 ```
 
 Actions are functional: they accept a `Facts` instance and return a (possibly new) `Facts` instance. This makes the engine behaviour explicit and suitable for reasoning and testing.
 
-## Key semantics
-
-- Side effects: Actions may produce side effects (external calls). Prefer to keep side-effects explicit and document them.
-- Facts flow: Actions return a `Facts` instance; the engine threads the returned instance forward so subsequent rules see any updates made by previous actions.
-
 ## Implementing an action
 
-Functional style (recommended):
+### Class-based action
 
 ```csharp
 public class MarkProcessedAction : IAction
@@ -45,64 +40,45 @@ public class MarkProcessedAction : IAction
 }
 ```
 
-Creating an action from a delegate:
+### Delegate-based action
 
 ```csharp
-var action = Actions.From(f => f.Set("handled", true)); // returns Facts
+var action = Actions.From(f => f.Set("handled", true));
 ```
 
-## Parameter binding with attribute-based actions
-
-If your rules use attribute-based method discovery, the engine may support binding method parameters from facts using a `[Fact("name")]` attribute, similar to conditions. Example:
+### Attribute-based action (in a rule class)
 
 ```csharp
-[Action]
-public void Send([Fact("email")] string email)
+[Rule("ProcessOrder")]
+public class ProcessOrderRule
 {
-    EmailClient.Send(email, "Hi", "...body...");
-}
-```
+    [Condition]
+    public bool ShouldProcess([Fact("status")] string status) => status == "pending";
 
-The engine is responsible for resolving parameters before calling the method. For optional facts or type mismatches, prefer nullable parameters or use `Facts` directly.
-
-## Best practices
-
-- Keep actions small: Prefer composable, single-responsibility actions. This makes testing and ordering simpler.
-- Be explicit about side effects: Document what state the action changes (facts, external systems). Avoid hidden global side effects.
-- Idempotence: When actions interact with external systems, design them to be idempotent where possible  repeated execution should not cause incorrect duplicate effects.
-- Error handling: Catch and handle expected exceptions inside the action. Use structured logging and consider retry/backoff strategies outside of the rule engine unless the engine integrates retries.
-- Mutating facts: If you mutate facts in an action, understand the effect on subsequent rules. If you need isolation, either clone the `Facts` instance beforehand or ensure the executor snapshots facts.
-
-## Examples
-
-1) Functional action returning updated Facts (recommended):
-
-```csharp
-[Action]
-public Facts MarkProcessed(Facts facts)
-{
-    return facts.Set("processed", true);
-}
-```
-
-2) Action that performs external work and sets a fact:
-
-```csharp
-public class ArchiveAction : IAction
-{
-    public Facts Execute(Facts facts)
+    [Action]
+    public Facts Process(Facts facts)
     {
-        if (facts.TryGetValue<string>("documentId", out var id))
-        {
-            ArchiveService.Archive(id);
-            return facts.Set("archived", true);
-        }
-        return facts;
+        return facts.Set("status", "processed");
     }
 }
 ```
 
-3) Multiple actions with ordering:
+## Parameter binding
+
+Action methods can use `[Fact("name")]` attribute on parameters for automatic binding:
+
+```csharp
+[Action]
+public Facts SendEmail([Fact("email")] string email, Facts facts)
+{
+    EmailClient.Send(email, "Subject", "Body");
+    return facts.Set("emailSent", true);
+}
+```
+
+## Multiple actions with ordering
+
+Use the `Order` parameter to control execution sequence:
 
 ```csharp
 [Rule("BackupRule")]
@@ -112,21 +88,33 @@ public class BackupRule
     public bool ShouldBackup([Fact("needsBackup")] bool needsBackup) => needsBackup;
 
     [Action(Order = 1)]
-    public Facts Prepare(Facts facts) { /* prepare */ return facts; }
+    public Facts Prepare(Facts facts)
+    {
+        // Prepare for backup
+        return facts.Set("backupPrepared", true);
+    }
 
     [Action(Order = 2)]
-    public Facts Backup(Facts facts) { /* backup */ return facts.Set("backedUp", true); }
+    public Facts Backup(Facts facts)
+    {
+        // Perform backup
+        return facts.Set("backedUp", true);
+    }
 
     [Action(Order = 3)]
-    public Facts Cleanup(Facts facts) { /* cleanup */ return facts; }
+    public Facts Cleanup(Facts facts)
+    {
+        // Cleanup temporary files
+        return facts.Set("cleanedUp", true);
+    }
 }
 ```
 
-Note: Actions are executed in `Order` sequence. The `Facts` instance returned by each action is passed to the next.
+Actions are executed in `Order` sequence. The `Facts` instance returned by each action is passed to the next.
 
-## Async Actions
+## Async actions
 
-LightRules provides first-class support for asynchronous actions via the `IAsyncAction` interface:
+LightRules provides support for asynchronous actions via the `IAsyncAction` interface:
 
 ```csharp
 public interface IAsyncAction
@@ -136,8 +124,6 @@ public interface IAsyncAction
 ```
 
 ### Creating async actions
-
-Use the `AsyncActions` helper class:
 
 ```csharp
 // From an async function
@@ -151,24 +137,184 @@ var asyncAction = AsyncActions.From(async (facts, ct) =>
 var wrapped = AsyncActions.FromSync(syncAction);
 ```
 
-### Using async actions with the engine
+### Example async action class
 
-Call `FireAsync` on the engine to execute rules asynchronously:
+```csharp
+public class FetchDataAction : IAsyncAction
+{
+    private readonly HttpClient _client;
+
+    public FetchDataAction(HttpClient client)
+    {
+        _client = client;
+    }
+
+    public async Task<Facts> ExecuteAsync(Facts facts, CancellationToken ct = default)
+    {
+        if (facts.TryGetValue<string>("url", out var url))
+        {
+            var response = await _client.GetStringAsync(url, ct);
+            return facts.Set("response", response);
+        }
+        return facts;
+    }
+}
+```
+
+### Using async actions with the engine
 
 ```csharp
 var engine = new DefaultRulesEngine();
 var finalFacts = await engine.FireAsync(rules, facts, cancellationToken);
 ```
 
-The engine automatically detects rules implementing `IAsyncRule` and uses async evaluation/execution for them.
+## Best practices
 
-## Troubleshooting / FAQ
+### Keep actions small and focused
 
-Q: My action throws, what happens?
-A: Engine behavior is implementation-specific. Common policies: propagate the exception, log and continue, or stop rule execution. Review your executor or add a wrapper action that handles exceptions.
+Write composable actions that do one thing well. Small actions are easier to test and reason about.
 
-Q: Can actions run asynchronously?
-A: Yes! Use `IAsyncAction` for async actions and `IAsyncRule` for async rules. The engine's `FireAsync` method supports async evaluation and execution. For sync rules/actions used with `FireAsync`, they are executed synchronously but wrapped in tasks.
+```csharp
+// Good: Single responsibility
+[Action(Order = 1)]
+public Facts ValidateOrder(Facts facts) => facts.Set("validated", true);
 
-Q: Should I call external services directly from an action?
-A: It's common but consider abstraction and testability. Prefer injecting service clients and keep actions thin wrappers that orchestrate calls. For I/O-bound operations, use `IAsyncAction` to avoid blocking threads.
+[Action(Order = 2)]
+public Facts CalculateTotal(Facts facts) => facts.Set("total", ComputeTotal(facts));
+
+[Action(Order = 3)]
+public Facts SendConfirmation(Facts facts) => facts.Set("confirmed", true);
+```
+
+### Be explicit about side effects
+
+Document what external systems an action touches. Avoid hidden global side effects.
+
+```csharp
+/// <summary>
+/// Sends order confirmation email.
+/// Side effects: Sends email via SMTP, logs to audit table.
+/// Modifies facts: Sets "emailSent" to true.
+/// </summary>
+[Action]
+public Facts SendOrderConfirmation(Facts facts) { /* ... */ }
+```
+
+### Design for idempotence
+
+When actions interact with external systems, design them so repeated execution does not cause incorrect duplicate effects:
+
+```csharp
+[Action]
+public Facts ProcessPayment(Facts facts)
+{
+    if (facts.TryGetValue<string>("paymentId", out var paymentId))
+    {
+        // Use idempotency key to prevent duplicate charges
+        var idempotencyKey = $"order-{facts.Get<string>("orderId")}";
+        PaymentService.Charge(paymentId, idempotencyKey);
+        return facts.Set("paymentProcessed", true);
+    }
+    return facts;
+}
+```
+
+Techniques for idempotence:
+- Use idempotency keys for external API calls
+- Use upserts instead of inserts for database operations
+- Check-before-write patterns
+- Store processed IDs to prevent reprocessing
+
+### Use async for I/O operations
+
+For HTTP calls, database queries, or file operations, use `IAsyncAction` and `FireAsync`:
+
+```csharp
+public class SaveToDbAction : IAsyncAction
+{
+    public async Task<Facts> ExecuteAsync(Facts facts, CancellationToken ct)
+    {
+        await _dbContext.SaveChangesAsync(ct);
+        return facts.Set("saved", true);
+    }
+}
+```
+
+## Error handling
+
+### Built-in listener support
+
+The engine notifies listeners when actions fail:
+
+```csharp
+public class LoggingListener : IRuleListener
+{
+    public void OnFailure(IRule rule, Facts facts, Exception exception)
+    {
+        _logger.LogError(exception, "Rule {RuleName} failed", rule.Name);
+    }
+
+    // ... other methods
+}
+
+var engine = new DefaultRulesEngine();
+engine.RegisterRuleListener(new LoggingListener());
+```
+
+### Engine parameters for error behavior
+
+```csharp
+var parameters = new RulesEngineParameters()
+    .WithSkipOnFirstFailedRule(true); // Stop processing on first error
+
+var engine = new DefaultRulesEngine(parameters);
+```
+
+### Exception handling in actions
+
+Handle expected exceptions inside the action:
+
+```csharp
+[Action]
+public Facts SendNotification(Facts facts)
+{
+    try
+    {
+        NotificationService.Send(facts.Get<string>("message"));
+        return facts.Set("notificationSent", true);
+    }
+    catch (NotificationException ex)
+    {
+        _logger.LogWarning(ex, "Failed to send notification");
+        return facts.Set("notificationFailed", true);
+    }
+}
+```
+
+For transient failures, consider retry/backoff outside the rule engine or use a dedicated retry wrapper.
+
+## FAQ
+
+**Q: My action throws, what happens?**
+
+Engine behavior depends on configuration. By default, the exception is caught, listeners are notified via `OnFailure`, and the engine continues to the next rule. Use `WithSkipOnFirstFailedRule(true)` to stop on first error.
+
+**Q: Should I call external services directly from an action?**
+
+It's common but consider abstraction and testability. Prefer injecting service clients and keep actions as thin wrappers. For I/O-bound operations, use `IAsyncAction` to avoid blocking threads.
+
+**Q: How do I share state between actions?**
+
+Return updated `Facts` from each action. The engine passes the returned `Facts` to subsequent actions and rules.
+
+```csharp
+[Action(Order = 1)]
+public Facts Step1(Facts facts) => facts.Set("step1Result", "value1");
+
+[Action(Order = 2)]
+public Facts Step2(Facts facts)
+{
+    var step1Result = facts.Get<string>("step1Result");
+    return facts.Set("step2Result", $"processed: {step1Result}");
+}
+```

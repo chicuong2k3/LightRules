@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
+
 namespace LightRules.Core
 {
     /// <summary>
-    /// Abstract base implementation of <see cref="IRulesEngine"/> providing
+    /// Thread-safe abstract base implementation of <see cref="IRulesEngine"/> providing
     /// basic storage and registration of engine parameters and listeners.
     /// Concrete engines should extend this class and implement the <see cref="IRulesEngine.Fire"/>
     /// and <see cref="IRulesEngine.Check"/> behaviors.
@@ -9,8 +11,8 @@ namespace LightRules.Core
     public abstract class AbstractRulesEngine : IRulesEngine
     {
         private readonly RulesEngineParameters _parameters;
-        private readonly List<IRuleListener> _ruleListeners;
-        private readonly List<IRulesEngineListener> _rulesEngineListeners;
+        private readonly ConcurrentBag<IRuleListener> _ruleListeners;
+        private readonly ConcurrentBag<IRulesEngineListener> _rulesEngineListeners;
 
         /// <summary>
         /// Create a new instance with default parameters.
@@ -23,8 +25,8 @@ namespace LightRules.Core
         protected AbstractRulesEngine(RulesEngineParameters parameters)
         {
             _parameters = parameters;
-            _ruleListeners = new List<IRuleListener>();
-            _rulesEngineListeners = new List<IRulesEngineListener>();
+            _ruleListeners = new ConcurrentBag<IRuleListener>();
+            _rulesEngineListeners = new ConcurrentBag<IRulesEngineListener>();
         }
 
         /// <summary>
@@ -41,23 +43,23 @@ namespace LightRules.Core
         }
 
         /// <summary>
-        /// Return an immutable view of registered rule listeners.
+        /// Return a snapshot of registered rule listeners.
         /// </summary>
         public IReadOnlyList<IRuleListener> GetRuleListeners()
         {
-            return _ruleListeners.AsReadOnly();
+            return _ruleListeners.ToArray();
         }
 
         /// <summary>
-        /// Return an immutable view of registered rules-engine listeners.
+        /// Return a snapshot of registered rules-engine listeners.
         /// </summary>
         public IReadOnlyList<IRulesEngineListener> GetRulesEngineListeners()
         {
-            return _rulesEngineListeners.AsReadOnly();
+            return _rulesEngineListeners.ToArray();
         }
 
         /// <summary>
-        /// Register a single rule listener.
+        /// Register a single rule listener. Thread-safe.
         /// </summary>
         public void RegisterRuleListener(IRuleListener ruleListener)
         {
@@ -65,15 +67,18 @@ namespace LightRules.Core
         }
 
         /// <summary>
-        /// Register multiple rule listeners.
+        /// Register multiple rule listeners. Thread-safe.
         /// </summary>
         public void RegisterRuleListeners(IEnumerable<IRuleListener> ruleListeners)
         {
-            _ruleListeners.AddRange(ruleListeners);
+            foreach (var listener in ruleListeners)
+            {
+                _ruleListeners.Add(listener);
+            }
         }
 
         /// <summary>
-        /// Register a single rules-engine listener.
+        /// Register a single rules-engine listener. Thread-safe.
         /// </summary>
         public void RegisterRulesEngineListener(IRulesEngineListener listener)
         {
@@ -81,11 +86,14 @@ namespace LightRules.Core
         }
 
         /// <summary>
-        /// Register multiple rules-engine listeners.
+        /// Register multiple rules-engine listeners. Thread-safe.
         /// </summary>
         public void RegisterRulesEngineListeners(IEnumerable<IRulesEngineListener> listeners)
         {
-            _rulesEngineListeners.AddRange(listeners);
+            foreach (var listener in listeners)
+            {
+                _rulesEngineListeners.Add(listener);
+            }
         }
 
         // IRulesEngine.Fire and Check must be implemented by subclasses
@@ -135,13 +143,13 @@ namespace LightRules.Core
         protected RulesEngineParameters Parameters => _parameters;
 
         /// <summary>
-        /// Protected access to the modifiable list of rule listeners for subclasses.
+        /// Protected access to rule listeners for subclasses. Returns a snapshot for thread-safe iteration.
         /// </summary>
-        protected IList<IRuleListener> RuleListeners => _ruleListeners;
+        protected IEnumerable<IRuleListener> RuleListeners => _ruleListeners.ToArray();
 
         /// <summary>
-        /// Protected access to the modifiable list of rules-engine listeners for subclasses.
+        /// Protected access to rules-engine listeners for subclasses. Returns a snapshot for thread-safe iteration.
         /// </summary>
-        protected IList<IRulesEngineListener> RulesEngineListeners => _rulesEngineListeners;
+        protected IEnumerable<IRulesEngineListener> RulesEngineListeners => _rulesEngineListeners.ToArray();
     }
 }
