@@ -10,9 +10,6 @@
 - [Examples](#examples)
 - [Troubleshooting/FAQ](#troubleshootingfaq)
 
-This document explains what a "condition" is in LightRules. It is written for beginners 
-and assumes no prior knowledge of rule engines.
-
 ## What is a Condition?
 
 A Condition is a predicate that decides whether a rule should fire. 

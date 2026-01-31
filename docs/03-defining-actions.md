@@ -9,8 +9,6 @@
 - [Examples](#examples)
 - [Troubleshooting / FAQ](#troubleshooting--faq)
 
-This document explains what an "action" is in LightRules and how to write actions in the new immutable, functional style.
-
 ## What is an Action?
 
 An Action is the piece of code executed when a rule fires (i.e., when its condition evaluated to `true`).
@@ -32,7 +30,6 @@ Actions are functional: they accept a `Facts` instance and return a (possibly ne
 
 - Side effects: Actions may produce side effects (external calls). Prefer to keep side-effects explicit and document them.
 - Facts flow: Actions return a `Facts` instance; the engine threads the returned instance forward so subsequent rules see any updates made by previous actions.
-- Legacy support: For compatibility, `Actions.From(Action<Facts>)` executes the legacy mutation-style delegate on a mutable builder and returns an immutable `Facts` instance. Prefer the functional `Func<Facts, Facts>` form for new code.
 
 ## Implementing an action
 
@@ -48,16 +45,11 @@ public class MarkProcessedAction : IAction
 }
 ```
 
-Compatibility wrapper from a delegate:
+Creating an action from a delegate:
 
 ```csharp
-var action = Actions.From(f => f.Set("handled", true)); // func -> returns Facts
-
-// or use legacy-style delegate (compatibility):
-var legacy = Actions.From((Facts f) => { f.Set("handled", true); });
+var action = Actions.From(f => f.Set("handled", true)); // returns Facts
 ```
-
-Notes: the legacy wrapper runs the delegate against a mutable builder internally and returns an immutable result; prefer the functional `Func<Facts, Facts>` form.
 
 ## Parameter binding with attribute-based actions
 

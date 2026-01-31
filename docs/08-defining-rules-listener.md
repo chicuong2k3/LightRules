@@ -8,8 +8,6 @@
 - [Registering rule listeners](#registering-rule-listeners)
 - [Best practices](#best-practices)
 
-This document describes the `IRuleListener` interface and how to use per-rule listeners to observe and react to events that occur while a specific rule is evaluated and executed.
-
 ## Overview
 
 `IRuleListener` provides hooks at the rule level: before/after condition evaluation, on evaluation errors, before execution, on success and on failure. Use per-rule listeners to implement custom logging, testing hooks, metrics per rule, retry or compensation strategies, and richer observability of rule behavior.

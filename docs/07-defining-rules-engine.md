@@ -7,8 +7,6 @@
 - [Typical usage](#typical-usage)
 - [Behavior notes and troubleshooting](#behavior-notes-and-troubleshooting)
 
-This document explains the core rules engine concepts in LightRules, the available engine implementations, the `RulesEngineParameters` configuration, listener hooks, and a short example for beginners.
-
 ## What is an engine?
 
 A rules engine is the component that takes a set of `IRule` instances and a `Facts` collection and coordinates evaluation and execution. LightRules exposes an interface `IRulesEngine` and two common implementations:

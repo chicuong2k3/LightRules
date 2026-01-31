@@ -5,8 +5,6 @@
 - [Listeners](#listeners)
 - [Order and typical usage](#order-and-typical-usage)
 
-This document describes the engine-level parameters and listener interfaces used by LightRules. It explains how to configure execution behavior via `RulesEngineParameters` and how to observe engine lifecycle events using listeners.
-
 ## Engine parameters
 
 `RulesEngineParameters` controls execution shortcuts and thresholds used by rule engines. The class exposes the following properties:

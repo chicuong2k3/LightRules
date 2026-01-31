@@ -8,8 +8,6 @@
 - [Registering engine listeners](#registering-engine-listeners)
 - [Best practices and caveats](#best-practices-and-caveats)
 
-This document explains the `IRulesEngineListener` interface, how engine-level listeners work, when they are invoked, and how to register them with a rules engine.
-
 ## Overview
 
 `IRulesEngineListener` provides hooks to observe the lifecycle of a rules engine execution at the granularity of a whole rule set. These listeners are invoked before a ruleset is evaluated and after the ruleset has been executed. They are useful for tasks such as logging, metrics, preparing or validating facts before execution, or triggering post-run actions.

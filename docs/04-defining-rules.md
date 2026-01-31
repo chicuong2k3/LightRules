@@ -9,7 +9,6 @@
 - [Async Rules](#async-rules)
 - [Best practices and notes](#best-practices-and-notes)
 
-This document explains how to define rules in LightRules, the available APIs and attributes, how rules are discovered, and simple examples for beginners. It assumes no prior knowledge of rule engines.
 
 ## Overview
 
@@ -56,7 +55,7 @@ There are two common approaches:
 
 LightRules supports a generator-backed attribute approach: write plain POCO rule classes annotated with `Rule`, `Condition`, `Action`, `Fact`, and `Priority` attributes and let the source generator produce high-performance adapters at compile time.
 
-See `docs/defining-rules-attribute-based.md` for a full guide, examples, and migration notes.
+See `docs/defining-rules-attribute-based.md` for a full guide and examples.
 
 ### Attributes (declarative rules)
 

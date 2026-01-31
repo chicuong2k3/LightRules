@@ -6,8 +6,6 @@
 - [Examples (common operations)](#examples-common-operations)
 - [FAQ](#frequently-asked-questions-beginner-friendly)
 
-This document explains what a "fact" is in LightRules, how facts are stored and accessed, and how you typically use them when writing rules. It is written for beginners and assumes no prior experience with rule engines.
-
 ## What is a fact?
 
 A fact is a piece of information known by the rule engine at runtime. It is a named value that represents some piece of data about the current situation or state the rules should reason about. Examples of facts: "temperature = 18", "customer = \"Alice\"", or "isWeekend = true".
@@ -72,17 +70,14 @@ Notes and best practices for actions and facts
 
 - Error handling: handle expected exceptions inside the action where reasonable. Use structured logging to capture context (rule name, facts snapshot, correlation id). For transient failures, prefer retry/backoff outside the rule engine or via a dedicated retry wrapper; avoid blocking the engine thread with long retry loops unless the engine is designed for it.
 
-- Mutating facts with the immutable API: `Facts` is immutable — actions should return a new `Facts` instance representing the updated state. Do not attempt to mutate the `facts` parameter in-place. Example:
+- Returning updated facts: `Facts` is immutable — actions should return a new `Facts` instance representing the updated state. Example:
 
   ```csharp
-  // Correct (functional)
   public Facts MarkProcessed(Facts facts)
   {
       return facts.Set("processed", true);
   }
   ```
-
-  If you still have legacy mutation-style code (void methods that modify `Facts`), the project provides compatibility helpers (for example `Actions.From(Action<Facts>)`) and the source generator supports legacy void action methods. However, for clarity and forward-compatibility prefer the functional form.
 
 - Isolation: the engine evaluates conditions on a snapshot of facts and threads the `Facts` instance returned by actions forward. If you need isolation for specific action-side effects or want to compute changes without affecting subsequent rules, operate on a copy and return the appropriate `Facts` instance.
 
@@ -140,53 +135,8 @@ A: `Get<T>` attempts a cast and will throw an exception if the stored runtime va
 Q: "Is the fact name comparison case-sensitive?"
 A: Yes, `Facts` uses an ordinal (case-sensitive) comparison when matching names. Be consistent with your fact naming.
 
-## Migration: moving to immutable Facts
-
-This release changes `Facts` to an immutable, record-like collection. Key migration steps:
-
-- Creating / setting facts
-  - Old mutable code:
-    ```csharp
-    var facts = new Facts();
-    facts.Set("quantity", 5);
-    facts["customer"] = "Alice";
-    ```
-  - New immutable code:
-    ```csharp
-    var facts = new Facts();
-    facts = facts.Set("quantity", 5);
-    facts = facts.Add(new Fact("customer", "Alice"));
-    ```
-
-- Actions and rules
-  - `IAction.Execute` and `IRule.Execute` now return a `Facts` instance. Update implementations to return the new facts after applying changes.
-  - For POCO attribute-based methods, the source generator supports both returning `Facts` and legacy `void` methods (for backward compatibility). Prefer returning `Facts` where possible.
-
-- Example: converting a legacy action to functional:
-
-Old:
-```csharp
-public void OnSuccess(Facts facts)
-{
-    facts.Set("orderAccepted", true);
-}
-```
-
-New (functional):
-```csharp
-public Facts OnSuccess(Facts facts)
-{
-    return facts.Set("orderAccepted", true);
-}
-```
-
-Compatibility helpers
-
-- `Actions.From(Action<Facts>)` is available during migration: it runs the legacy mutation-style delegate on a temporary mutable builder and returns an immutable `Facts` instance.
-
-Testing & verification
-
-- Run the sample app and your tests to verify behavior. The engine's `Fire` method now returns the final `Facts` instance, which you should capture if you need to inspect results after firing.
+Q: "How do I get the final facts after running rules?"
+A: The engine's `Fire` method returns the final `Facts` instance after all rules have executed:
 
 ```csharp
 var finalFacts = engine.Fire(rules, facts);
