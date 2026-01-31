@@ -62,7 +62,7 @@ Listeners are executed in registration order. Keep listeners lightweight and non
 2. Create and populate a `Facts` instance.
 3. Create `RulesEngineParameters` and instantiate the engine implementation you need.
 4. Optionally register `IRuleListener` and `IRulesEngineListener` instances for tracing and metrics.
-5. Call `engine.Fire(rules, facts)` (or `engine.Check(rules, facts)` depending on the API) to run the engine.
+5. Call `engine.Fire(rules, facts)` for synchronous execution or `engine.FireAsync(rules, facts)` for async.
 
 Example (end-to-end minimal):
 
@@ -78,6 +78,54 @@ var engine = new DefaultRulesEngine(parameters);
 var finalFacts = engine.Fire(rules, facts);
 Console.WriteLine($"Final facts: {finalFacts}");
 ```
+
+## Async Support
+
+LightRules provides full async support for rule evaluation and execution:
+
+### Async methods on IRulesEngine
+
+```csharp
+// Fire rules asynchronously
+Task<Facts> FireAsync(Rules rules, Facts facts, CancellationToken cancellationToken = default);
+
+// Check rules asynchronously
+Task<IDictionary<IRule, bool>> CheckAsync(Rules rules, Facts facts, CancellationToken cancellationToken = default);
+```
+
+### IAsyncRule interface
+
+Rules can implement `IAsyncRule` for true async evaluation and execution:
+
+```csharp
+public interface IAsyncRule : IRule
+{
+    Task<bool> EvaluateAsync(Facts facts, CancellationToken cancellationToken = default);
+    Task<Facts> ExecuteAsync(Facts facts, CancellationToken cancellationToken = default);
+}
+```
+
+### Example: Async rule execution
+
+```csharp
+var engine = new DefaultRulesEngine(parameters);
+
+// Async execution with cancellation support
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+var finalFacts = await engine.FireAsync(rules, facts, cts.Token);
+
+Console.WriteLine($"Final facts: {finalFacts}");
+```
+
+### Converting sync rules to async
+
+Use the extension method to wrap sync rules:
+
+```csharp
+IAsyncRule asyncRule = syncRule.AsAsync();
+```
+
+The engine automatically detects `IAsyncRule` implementations and uses async methods when available. Sync rules are executed synchronously but returned as completed tasks.
 
 ## Behavior notes and troubleshooting
 

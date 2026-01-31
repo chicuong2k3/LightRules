@@ -6,6 +6,7 @@
 - [Attribute-driven (declarative)](#how-to-define-rules)
 - [Discovery](#discovery)
 - [Examples](#examples)
+- [Async Rules](#async-rules)
 - [Best practices and notes](#best-practices-and-notes)
 
 This document explains how to define rules in LightRules, the available APIs and attributes, how rules are discovered, and simple examples for beginners. It assumes no prior knowledge of rule engines.
@@ -17,7 +18,7 @@ A rule is a named piece of business logic that can be evaluated against a set of
 - Description: a human-friendly summary of what the rule does.
 - Priority: an ordering value used when multiple rules are evaluated; lower numbers run first.
 - Conditions: predicates evaluated against the current facts to decide whether the rule should fire.
-- Actions: operations executed when a rule fires; actions may mutate facts or cause side effects.
+- Actions: operations executed when a rule fires; actions return updated Facts instances.
 
 In LightRules a rule is represented by the `IRule` interface:
 
@@ -46,7 +47,7 @@ Note: `Facts` is the lightweight data/context container used throughout the engi
 
 There are two common approaches:
 
-1. Attribute-driven (declarative): decorate a POCO that implements `IRule` with attributes that mark condition and action methods. A discovery + injector component can then build and invoke rules automatically.
+1. Attribute-driven (declarative): decorate a POCO with attributes that mark condition and action methods. The source generator produces adapters automatically.
 2. Programmatic: implement `IRule` (or use helper classes like `BasicRule` / `DefaultRule`) and register instances with the `Rules` collection.
 
 ### Attribute-driven (declarative) source-generator (recommended)
@@ -86,7 +87,7 @@ Important: attributes only declare intent. The source generator consumes the att
 
 LightRules provides a simple discovery helper:
 
-- `RuleDiscovery.Discover()` scans the assemblies loaded into the current process (the same assemblies the generator emitted `LightRules.Generated.RuleRegistry` into) and returns an ordered list of `RuleMetadata` objects describing generated adapters.
+- `RuleDiscovery.Discover()` scans the assemblies loaded into the current process and returns an ordered list of `RuleMetadata` objects describing generated adapters.
 
 `RuleMetadata` includes:
 - `Type RuleType`
@@ -146,18 +147,16 @@ var rules = new Rules(rule);
 
 ### Simple injector snippet
 
-Below is a tiny example to illustrate how a discovery+injector could work. It's intentionally simple  production injectors should handle conversions, missing facts, optional parameters, and errors.
+Below is a tiny example to illustrate how a discovery+injector could work. It's intentionally simple - production injectors should handle conversions, missing facts, optional parameters, and errors.
 
 ```csharp
 // Discover rule metadata across loaded assemblies
 var metas = RuleDiscovery.Discover();
 
-// Instantiate and bind rule adapter instances (very small example)
-// The generator produces adapter types (e.g. MyRule_RuleAdapter). Use the metadata to create adapter instances.
+// Instantiate and bind rule adapter instances
 var ruleInstances = new List<IRule>();
 foreach (var meta in metas)
 {
-    // meta.RuleType is the generated adapter type; adapter constructors may accept the original POCO or be parameterless.
     IRule instance;
     try
     {
@@ -188,10 +187,67 @@ foreach (var r in rulesCollection)
 // currentFacts now contains all updates made by executed rules
 ```
 
+## Async Rules
+
+Rules can implement `IAsyncRule` for asynchronous evaluation and execution:
+
+```csharp
+public interface IAsyncRule : IRule
+{
+    Task<bool> EvaluateAsync(Facts facts, CancellationToken cancellationToken = default);
+    Task<Facts> ExecuteAsync(Facts facts, CancellationToken cancellationToken = default);
+}
+```
+
+### Example async rule
+
+```csharp
+public class AsyncDataFetchRule : IAsyncRule
+{
+    public string Name => "AsyncDataFetch";
+    public string Description => "Fetches data asynchronously";
+    public int Priority => 5;
+
+    // Sync fallback implementations (required by IRule)
+    public bool Evaluate(Facts facts) => EvaluateAsync(facts).GetAwaiter().GetResult();
+    public Facts Execute(Facts facts) => ExecuteAsync(facts).GetAwaiter().GetResult();
+
+    public async Task<bool> EvaluateAsync(Facts facts, CancellationToken ct = default)
+    {
+        return facts.TryGetValue<string>("url", out _);
+    }
+
+    public async Task<Facts> ExecuteAsync(Facts facts, CancellationToken ct = default)
+    {
+        if (facts.TryGetValue<string>("url", out var url))
+        {
+            var data = await FetchDataAsync(url, ct);
+            return facts.Set("fetchedData", data);
+        }
+        return facts;
+    }
+
+    public int CompareTo(IRule? other) => Priority.CompareTo(other?.Priority ?? 0);
+}
+```
+
+### Using async rules
+
+```csharp
+var engine = new DefaultRulesEngine();
+
+// Async execution with cancellation support
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+var finalFacts = await engine.FireAsync(rules, facts, cts.Token);
+```
+
+The engine automatically detects `IAsyncRule` implementations and uses async methods. Sync rules work with `FireAsync` too - they're executed synchronously but wrapped in tasks.
+
 ## Best practices and notes
 
 - Prefer `Facts.TryGetValue<T>` when reading facts in conditions to avoid invalid cast exceptions.
 - Keep conditions side effect free. Actions are the place to mutate facts or call external systems.
-- Mutating `Facts` inside actions affects subsequent rules in the same run  LightRules engines do not snapshot facts by default. If you need isolation, clone the `Facts` instance before firing rules or use a custom executor.
-- Use `ActionAttribute(Order = n)` to express action ordering when multiple methods exist on a rule (discovery/invoker must respect this).
+- Since `Facts` is immutable, actions must return the updated `Facts` instance for changes to propagate to subsequent rules.
+- Use `ActionAttribute(Order = n)` to express action ordering when multiple methods exist on a rule.
+- For I/O-bound operations (HTTP calls, database queries), implement `IAsyncRule` and use `FireAsync()`.
 - Use `RuleDiscovery` for simple discovery; if you need method/parameter binding create or reuse a small injector that reads attributes and invokes methods.

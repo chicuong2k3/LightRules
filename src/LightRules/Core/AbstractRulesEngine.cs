@@ -91,6 +91,26 @@ namespace LightRules.Core
         // IRulesEngine.Fire and Check must be implemented by subclasses
         public abstract Facts Fire(Rules rules, Facts facts);
 
+        /// <summary>
+        /// Fire all registered rules asynchronously. Subclasses should override for true async behavior.
+        /// Default implementation calls the synchronous Fire method.
+        /// </summary>
+        public virtual Task<Facts> FireAsync(Rules rules, Facts facts, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(Fire(rules, facts));
+        }
+
+        /// <summary>
+        /// Check rules asynchronously. Subclasses should override for true async behavior.
+        /// Default implementation calls the synchronous Check method.
+        /// </summary>
+        public virtual Task<IDictionary<IRule, bool>> CheckAsync(Rules rules, Facts facts, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(Check(rules, facts));
+        }
+
         public virtual IDictionary<IRule, bool> Check(Rules rules, Facts facts)
         {
             var results = new Dictionary<IRule, bool>();

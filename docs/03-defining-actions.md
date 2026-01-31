@@ -132,13 +132,51 @@ public class BackupRule
 
 Note: Actions are executed in `Order` sequence. The `Facts` instance returned by each action is passed to the next.
 
+## Async Actions
+
+LightRules provides first-class support for asynchronous actions via the `IAsyncAction` interface:
+
+```csharp
+public interface IAsyncAction
+{
+    Task<Facts> ExecuteAsync(Facts facts, CancellationToken cancellationToken = default);
+}
+```
+
+### Creating async actions
+
+Use the `AsyncActions` helper class:
+
+```csharp
+// From an async function
+var asyncAction = AsyncActions.From(async (facts, ct) =>
+{
+    await SomeAsyncOperation(ct);
+    return facts.Set("completed", true);
+});
+
+// Wrap a synchronous action
+var wrapped = AsyncActions.FromSync(syncAction);
+```
+
+### Using async actions with the engine
+
+Call `FireAsync` on the engine to execute rules asynchronously:
+
+```csharp
+var engine = new DefaultRulesEngine();
+var finalFacts = await engine.FireAsync(rules, facts, cancellationToken);
+```
+
+The engine automatically detects rules implementing `IAsyncRule` and uses async evaluation/execution for them.
+
 ## Troubleshooting / FAQ
 
 Q: My action throws, what happens?
 A: Engine behavior is implementation-specific. Common policies: propagate the exception, log and continue, or stop rule execution. Review your executor or add a wrapper action that handles exceptions.
 
 Q: Can actions run asynchronously?
-A: The core `IAction.Execute(Facts)` is synchronous. If you need asynchronous work, either call async methods with proper waiting (e.g., `Task.Run(...).GetAwaiter().GetResult()`) or adapt your engine to support async actions. Be mindful of blocking threads.
+A: Yes! Use `IAsyncAction` for async actions and `IAsyncRule` for async rules. The engine's `FireAsync` method supports async evaluation and execution. For sync rules/actions used with `FireAsync`, they are executed synchronously but wrapped in tasks.
 
 Q: Should I call external services directly from an action?
-A: It's common but consider abstraction and testability. Prefer injecting service clients and keep actions thin wrappers that orchestrate calls.
+A: It's common but consider abstraction and testability. Prefer injecting service clients and keep actions thin wrappers that orchestrate calls. For I/O-bound operations, use `IAsyncAction` to avoid blocking threads.

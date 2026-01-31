@@ -52,6 +52,59 @@ namespace LightRules.Core
             return _delegate.Check(rules, facts);
         }
 
+        /// <summary>
+        /// Fire rules asynchronously with iterative inference.
+        /// </summary>
+        public override async Task<Facts> FireAsync(Rules rules, Facts facts, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(rules);
+            ArgumentNullException.ThrowIfNull(facts);
+
+            var currentFacts = facts;
+            IEnumerable<IRule> selectedRules;
+            do
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                selectedRules = await SelectCandidatesAsync(rules, currentFacts, cancellationToken).ConfigureAwait(false);
+                if (selectedRules.Any())
+                {
+                    currentFacts = await _delegate.FireAsync(new Rules(selectedRules), currentFacts, cancellationToken).ConfigureAwait(false);
+                }
+            } while (selectedRules.Any());
+
+            return currentFacts;
+        }
+
+        private async Task<IEnumerable<IRule>> SelectCandidatesAsync(Rules rules, Facts facts, CancellationToken cancellationToken)
+        {
+            var candidates = new List<IRule>();
+            foreach (var rule in rules)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                bool result;
+                if (rule is IAsyncRule asyncRule)
+                {
+                    result = await asyncRule.EvaluateAsync(facts, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    result = rule.Evaluate(facts);
+                }
+                if (result)
+                {
+                    candidates.Add(rule);
+                }
+            }
+            return candidates;
+        }
+
+        public override Task<IDictionary<IRule, bool>> CheckAsync(Rules rules, Facts facts, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(rules);
+            ArgumentNullException.ThrowIfNull(facts);
+            return _delegate.CheckAsync(rules, facts, cancellationToken);
+        }
+
         public new void RegisterRuleListener(IRuleListener ruleListener)
         {
             base.RegisterRuleListener(ruleListener);
