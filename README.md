@@ -12,11 +12,12 @@ LightRules is a lightweight .NET rules engine for defining, evaluating and execu
 - [Overview](#overview)
 - [Key Features](#key-features)
 - [Project Status](#project-status)
+- [Roadmap (short)](#roadmap-short)
 - [Prerequisites](#prerequisites)
 - [Build & Install](#build--install)
 - [Quick Start](#quick-start)
+- [Fluent API Example](#fluent-api-example)
 - [Documentation](#documentation)
-- [Roadmap](#roadmap)
 - [Samples](#samples)
 - [Contributing](#contributing)
   - [Contribution Rules](#contribution-rules)
@@ -32,7 +33,7 @@ LightRules is a lightweight .NET rules engine for defining, evaluating and execu
 1. Programmatic: implement the `IRule` interface or use helper classes such as `DefaultRule` and `BasicRule`.
 2. Attribute-based (recommended): annotate plain POCO classes with `[Rule]`, `[Condition]`, `[Action]`, and `[Fact]` and let a Roslyn source generator (`LightRules.Generator`) emit efficient `IRule` adapters at compile-time.
 
-The attribute-based approach avoids runtime reflection and is suitable for AOT/trimming scenarios.
+A new Fluent API is provided to make programmatic rule creation concise and readable (`RuleBuilder`, `ConditionBuilder`, `ActionBuilder`). See `docs/FLUENT_API.md`.
 
 ## Key Features
 
@@ -44,17 +45,20 @@ The attribute-based approach avoids runtime reflection and is suitable for AOT/t
 
 ## Project Status
 
-- CI: placeholder badge above — wire your CI workflow at `.github/workflows/ci.yml` to enable the build badge.
-- Coverage: placeholder coverage badge — configure coverage reporting (Coverlet / Codecov / other) to enable.
-- NuGet: package publishing is planned; current version badge is a placeholder.
+- CI: badge present; configure `.github/workflows/ci.yml` to enable continuous builds.
+- Coverage: placeholder badge — configure coverage reporting to enable.
+- Package: NuGet packaging is planned.
 
-Status summary:
-- Core runtime: implemented (IRule, Facts, Rules, DefaultRulesEngine, InferenceRulesEngine).
-- Attribute generator: implemented in `LightRules.Generator` (confirm in your local build).
-- Documentation: core docs present under `docs/` and ordered for guided reading.
-- Samples: minimal sample available under `samples/` (you can extend with more scenarios).
+Short status:
+- Core runtime implemented and tested locally.
+- Attribute generator present.
+- Fluent builders added for programmatic authoring.
 
-If you'd like, I can set up a GitHub Actions CI pipeline and a coverage report configuration; tell me your preferred CI and coverage provider.
+## Roadmap (short)
+
+- Short term: `ISession` scaffold, Agenda API, better tests and CI.
+- Mid term: LINQ-based DSL, pattern matcher (RETE or incremental), queries.
+- Long term: session persistence, decision tables, CEP features.
 
 ## Prerequisites
 
@@ -92,25 +96,23 @@ var engine = new DefaultRulesEngine();
 var finalFacts = engine.Fire(rules, facts);
 ```
 
-4. Example: attribute-based discovery and instantiation (no reflection required):
+## Fluent API Example
+
+A compact example using the Fluent API:
 
 ```csharp
-// Rules are auto-registered via ModuleInitializer when assembly loads
-var metas = RuleDiscovery.Discover();
-var rules = new Rules();
+using LightRules.Core.Fluent;
+using LightRules.Core;
 
-foreach (var meta in metas)
-{
-    // Use factory to create instance - no Activator.CreateInstance needed!
-    var instance = meta.CreateInstance();
-    rules.Register(instance);
-}
+var rule = RuleBuilder.Create("OrderPositive")
+    .WithDescription("Fires when order quantity is positive")
+    .WithPriority(10)
+    .When(f => f.TryGetFactValue<int>("quantity", out var q) && q > 0)
+    .Then(f => f.AddOrReplaceFact("orderAccepted", true))
+    .Build();
 
-var engine = new DefaultRulesEngine();
-var finalFacts = engine.Fire(rules, facts);
+var rules = new Rules(rule);
 ```
-
-> Note: LightRules is fully AOT-compatible. Discovery, registration, and instantiation all work without runtime reflection.
 
 ## Documentation
 
@@ -121,10 +123,11 @@ The repository includes ordered documentation files under `docs/`. Prefer readin
 3. `docs/03-defining-actions.md` — Writing actions.
 4. `docs/04-defining-rules.md` — Rules overview and programmatic approach.
 5. `docs/05-defining-rules-attribute-based.md` — Attribute-based rules and source generator notes.
-6. `docs/06-defining-engine.md` — Engine parameters and listeners (compact).
-7. `docs/07-defining-rules-engine.md` — Engine usage and examples (expanded).
-8. `docs/08-defining-rules-listener.md` — Per-rule listeners.
-9. `docs/09-defining-rules-engine-listener.md` — Engine-level listeners.
+6. `docs/FLUENT_API.md` — Fluent builder examples and migration notes.
+7. `docs/06-defining-engine.md` — Engine parameters and listeners (compact).
+8. `docs/07-defining-rules-engine.md` — Engine usage and examples (expanded).
+9. `docs/08-defining-rules-listener.md` — Per-rule listeners.
+10. `docs/09-defining-rules-engine-listener.md` — Engine-level listeners.
 
 ## Samples
 

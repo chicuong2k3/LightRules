@@ -8,6 +8,7 @@
 - [Examples](#examples)
 - [Async Rules](#async-rules)
 - [Best practices and notes](#best-practices-and-notes)
+- [Fluent API (programmatic)](#fluent-api-programmatic)
 
 
 ## Overview
@@ -44,16 +45,17 @@ Note: `Facts` is the lightweight data/context container used throughout the engi
 
 ## How to define rules
 
-There are two common approaches:
+There are three common approaches:
 
 1. Attribute-driven (declarative): decorate a POCO with attributes that mark condition and action methods. The source generator produces adapters automatically.
 2. Programmatic: implement `IRule` (or use helper classes like `BasicRule` / `DefaultRule`) and register instances with the `Rules` collection.
+3. Fluent builders (programmatic, ergonomic): use the supplied `RuleBuilder`, `ConditionBuilder` and `ActionBuilder` to compose rules with a concise, readable API. See `docs/FLUENT_API.md` for details and examples.
 
 ### Attribute-driven (declarative) source-generator (recommended)
 
 <a name="attribute-driven-declarative"></a>
 
-LightRules supports a generator-backed attribute approach: write plain POCO rule classes annotated with `Rule`, `Condition`, `Action`, `Fact`, and `Priority` attributes and let the source generator produce high-performance adapters at compile time.
+LightRules supports a generator-backed attribute approach: write plain POCO rule classes annotated with `Rule`, `Condition`, `Action`, `Fact`, and `Priority` attributes and let the source generator produce concrete `IRule` adapters at compile time.
 
 See `docs/defining-rules-attribute-based.md` for a full guide and examples.
 
@@ -142,6 +144,17 @@ var actions = new List<IAction> { Actions.From(f => f.AddOrReplaceFact("orderAcc
 var rule = new DefaultRule("OrderPositiveRule", "Fires when order quantity is positive", 10, condition, actions);
 
 var rules = new Rules(rule);
+```
+
+3) Fluent API rule (concise and readable)
+
+```csharp
+using LightRules.Core;
+using static LightRules.Core.RuleBuilder;
+
+var rule = Rule("OrderPositiveRule", "Fires when order quantity is positive", 10)
+    .When(f => f.TryGetFactValue<int>("quantity", out var q) && q > 0)
+    .Do(f => f.AddOrReplaceFact("orderAccepted", true));
 ```
 
 ### Discovery and instantiation
