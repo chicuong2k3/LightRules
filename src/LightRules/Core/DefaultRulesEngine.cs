@@ -6,8 +6,13 @@ namespace LightRules.Core
     /// </summary>
     public sealed class DefaultRulesEngine : AbstractRulesEngine
     {
-        public DefaultRulesEngine() { }
-        public DefaultRulesEngine(RulesEngineParameters parameters) : base(parameters) { }
+        public DefaultRulesEngine()
+        {
+        }
+
+        public DefaultRulesEngine(RulesEngineParameters parameters) : base(parameters)
+        {
+        }
 
         public override Facts Fire(Rules rules, Facts facts)
         {
@@ -45,8 +50,8 @@ namespace LightRules.Core
                 var evaluationResult = false;
                 try
                 {
-                    // Evaluate against a snapshot to prevent conditions from mutating the shared Facts instance
-                    evaluationResult = rule.Evaluate(currentFacts.Clone());
+                    // Facts is immutable, safe to pass directly to Evaluate
+                    evaluationResult = rule.Evaluate(currentFacts);
                 }
                 catch (Exception ex)
                 {
@@ -107,7 +112,8 @@ namespace LightRules.Core
         /// Fire all registered rules asynchronously on the given facts.
         /// Supports <see cref="IAsyncRule"/> for true async evaluation and execution.
         /// </summary>
-        public override async Task<Facts> FireAsync(Rules rules, Facts facts, CancellationToken cancellationToken = default)
+        public override async Task<Facts> FireAsync(Rules rules, Facts facts,
+            CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(rules);
             ArgumentNullException.ThrowIfNull(facts);
@@ -147,11 +153,12 @@ namespace LightRules.Core
                     // Use async evaluation if the rule supports it
                     if (rule is IAsyncRule asyncRule)
                     {
-                        evaluationResult = await asyncRule.EvaluateAsync(currentFacts.Clone(), cancellationToken).ConfigureAwait(false);
+                        evaluationResult = await asyncRule.EvaluateAsync(currentFacts, cancellationToken)
+                            .ConfigureAwait(false);
                     }
                     else
                     {
-                        evaluationResult = rule.Evaluate(currentFacts.Clone());
+                        evaluationResult = rule.Evaluate(currentFacts);
                     }
                 }
                 catch (Exception ex)
@@ -172,12 +179,14 @@ namespace LightRules.Core
                         // Use async execution if the rule supports it
                         if (rule is IAsyncRule asyncRule)
                         {
-                            currentFacts = await asyncRule.ExecuteAsync(currentFacts, cancellationToken).ConfigureAwait(false);
+                            currentFacts = await asyncRule.ExecuteAsync(currentFacts, cancellationToken)
+                                .ConfigureAwait(false);
                         }
                         else
                         {
                             currentFacts = rule.Execute(currentFacts);
                         }
+
                         TriggerListenersOnSuccess(rule, currentFacts);
                         if (Parameters.SkipOnFirstAppliedRule)
                         {
@@ -209,7 +218,8 @@ namespace LightRules.Core
         /// <summary>
         /// Check rules asynchronously without firing them.
         /// </summary>
-        public override async Task<IDictionary<IRule, bool>> CheckAsync(Rules rules, Facts facts, CancellationToken cancellationToken = default)
+        public override async Task<IDictionary<IRule, bool>> CheckAsync(Rules rules, Facts facts,
+            CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(rules);
             ArgumentNullException.ThrowIfNull(facts);
@@ -219,7 +229,8 @@ namespace LightRules.Core
             return result;
         }
 
-        private async Task<IDictionary<IRule, bool>> DoCheckAsync(Rules rules, Facts facts, CancellationToken cancellationToken)
+        private async Task<IDictionary<IRule, bool>> DoCheckAsync(Rules rules, Facts facts,
+            CancellationToken cancellationToken)
         {
             var results = new Dictionary<IRule, bool>();
             var currentFacts = facts;
@@ -233,11 +244,12 @@ namespace LightRules.Core
                     {
                         if (rule is IAsyncRule asyncRule)
                         {
-                            results[rule] = await asyncRule.EvaluateAsync(currentFacts.Clone(), cancellationToken).ConfigureAwait(false);
+                            results[rule] = await asyncRule.EvaluateAsync(currentFacts, cancellationToken)
+                                .ConfigureAwait(false);
                         }
                         else
                         {
-                            results[rule] = rule.Evaluate(currentFacts.Clone());
+                            results[rule] = rule.Evaluate(currentFacts);
                         }
                     }
                     catch
@@ -246,6 +258,7 @@ namespace LightRules.Core
                     }
                 }
             }
+
             return results;
         }
 
@@ -259,7 +272,7 @@ namespace LightRules.Core
                 {
                     try
                     {
-                        results[rule] = rule.Evaluate(currentFacts.Clone());
+                        results[rule] = rule.Evaluate(currentFacts);
                     }
                     catch
                     {
@@ -267,6 +280,7 @@ namespace LightRules.Core
                     }
                 }
             }
+
             return results;
         }
 
@@ -291,6 +305,7 @@ namespace LightRules.Core
             {
                 if (!l.BeforeEvaluate(rule, facts)) return false;
             }
+
             return true;
         }
 

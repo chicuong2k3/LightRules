@@ -208,10 +208,11 @@ When actions interact with external systems, design them so repeated execution d
 [Action]
 public Facts ProcessPayment(Facts facts)
 {
-    if (facts.TryGetFactValue<string>("paymentId", out var paymentId))
+    if (facts.TryGetFactValue<string>("paymentId", out var paymentId) &&
+        facts.TryGetFactValue<string>("orderId", out var orderId))
     {
         // Use idempotency key to prevent duplicate charges
-        var idempotencyKey = $"order-{facts.GetFactValue<string>("orderId")}";
+        var idempotencyKey = $"order-{orderId}";
         PaymentService.Charge(paymentId, idempotencyKey);
         return facts.AddOrReplaceFact("paymentProcessed", true);
     }
@@ -278,9 +279,14 @@ Handle expected exceptions inside the action:
 [Action]
 public Facts SendNotification(Facts facts)
 {
+    if (!facts.TryGetFactValue<string>("message", out var message))
+    {
+        return facts.AddOrReplaceFact("notificationFailed", true);
+    }
+    
     try
     {
-        NotificationService.Send(facts.GetFactValue<string>("message"));
+        NotificationService.Send(message);
         return facts.AddOrReplaceFact("notificationSent", true);
     }
     catch (NotificationException ex)
@@ -314,7 +320,10 @@ public Facts Step1(Facts facts) => facts.AddOrReplaceFact("step1Result", "value1
 [Action(Order = 2)]
 public Facts Step2(Facts facts)
 {
-    var step1Result = facts.GetFactValue<string>("step1Result");
-    return facts.AddOrReplaceFact("step2Result", $"processed: {step1Result}");
+    if (facts.TryGetFactValue<string>("step1Result", out var step1Result))
+    {
+        return facts.AddOrReplaceFact("step2Result", $"processed: {step1Result}");
+    }
+    return facts;
 }
 ```

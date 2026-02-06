@@ -95,7 +95,15 @@ engine.RegisterRuleListeners(new[] { new MetricsRuleListener(), new AnotherListe
 ## Best practices
 
 - Keep listeners non-blocking and lightweight. Heavy I/O should be offloaded to background tasks.
-- Avoid mutating `Facts` as a side-effect in `BeforeEvaluate`/`AfterEvaluate` unless intentional; this can impact subsequent evaluations.
+- Facts are immutable. Avoid attempting to mutate a `Facts` instance inside listeners — mutation helpers return a new
+  `Facts` instance and do not change the original.
+
+  - If you need to apply state changes as a result of listener logic, prefer one of the following patterns:
+    - Emit an action (or return a request) that the engine will execute so the action can return an updated `Facts`
+      instance.
+    - Use a side-channel to request changes (for example enqueue an update) and let the engine apply them in a
+      controlled point where returning a new `Facts` is allowed.
+
 - Use `BeforeEvaluate`'s boolean return value to implement dynamic skipping rules (for example based on runtime feature flags).
 - Catch and handle listener exceptions where appropriate; listener exceptions should not crash the engine unless intentionally designed to do so.
 

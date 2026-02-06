@@ -26,7 +26,9 @@ public interface IRulesEngineListener
 
 - `BeforeEvaluate(Rules rules, Facts facts)`
   - Called once before the engine evaluates the provided `rules` against the supplied `facts`.
-  - For iterative engines (e.g., inference engines that repeatedly select candidate rules), this method may be called multiple times  once for each candidate set or iteration. Check your concrete engine's documentation if you rely on the call frequency.
+  - For iterative engines (e.g., inference engines that repeatedly select candidate rules), this method may be called
+    multiple times — once for each candidate set or iteration. Check your concrete engine's documentation if you rely on
+    the call frequency.
   - Use this method to prepare or validate facts, start timers, create a correlation context for logs, or short-circuit external resources used during execution.
 
 - `AfterExecute(Rules rules, Facts facts)`
@@ -67,7 +69,15 @@ Multiple listeners can be registered; the engine will invoke each in registratio
 ## Best practices and caveats
 
 - Keep listeners lightweight: `BeforeEvaluate`/`AfterExecute` run on the engine thread and should not block long-running I/O. Offload heavy work to background tasks if needed.
-- Avoid mutating `Facts` inside engine-level listeners unless you understand the effect on subsequent rule evaluation.
+- Facts are immutable. Avoid attempting to mutate a `Facts` instance inside engine listeners — mutation helpers return a
+  new `Facts` instance and do not alter the original.
+
+  - If you need to prepare or adjust facts before evaluation, prefer one of these patterns:
+    - Construct an initial `Facts` instance (via the public `Facts` helpers or a `FactsBuilder`) and pass that into the
+      engine when calling `Fire`/`Evaluate`.
+    - Emit a request from the listener to the caller code so the caller can create a modified `Facts` and re-run the
+      engine if appropriate.
+
 - Be mindful of inference engines: `BeforeEvaluate`/`AfterExecute` may be invoked multiple times; use a correlation id if you want to tie together iterations.
 - Exceptions thrown from listeners may affect engine execution depending on the engine implementation. Prefer catching/logging exceptions inside the listener.
 

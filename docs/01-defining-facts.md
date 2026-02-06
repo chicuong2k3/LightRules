@@ -44,7 +44,10 @@ var thread1Facts = facts.AddOrReplaceFact("counter", 1);
 var thread2Facts = facts.AddOrReplaceFact("counter", 2);
 
 // Original facts is unchanged
-Console.WriteLine(facts.GetFactValue<int>("counter")); // 0
+if (facts.TryGetFactValue<int>("counter", out var original))
+{
+    Console.WriteLine(original); // 0
+}
 ```
 
 ## Using facts inside conditions and actions
@@ -84,13 +87,9 @@ facts = facts.AddOrReplaceFact("quantity", 10);
 // Add using Fact instance
 facts = facts.AddFact(new Fact("customer", "Alice"));
 
-// Read typed value (returns default if not present; throws on type mismatch)
-int q = facts.GetFactValue<int>("quantity");
-
-// Safe read (recommended in conditions)
-if (facts.TryGetFactValue<int>("quantity", out var safeQ))
+if (facts.TryGetFactValue<int>("quantity", out var qty))
 {
-    Console.WriteLine(safeQ);
+    Console.WriteLine($"Quantity: {qty}");
 }
 
 // Check if fact exists
@@ -133,7 +132,8 @@ No. Within a single `Facts` instance, names are unique. Adding a fact with an ex
 
 **Q: What happens if I try to get a fact with the wrong type?**
 
-`GetFactValue<T>` attempts a cast and will throw an exception if the stored runtime value is not assignable to `T`. Use `TryGetFactValue<T>` to safely test and retrieve typed values.
+Use `TryGetFactValue<T>` to safely test and retrieve typed values. If the stored runtime value is not assignable to `T`,
+it returns `false` and sets `value` to `default(T)`. This is the only safe way to read facts.
 
 **Q: Is the fact name comparison case-sensitive?**
 

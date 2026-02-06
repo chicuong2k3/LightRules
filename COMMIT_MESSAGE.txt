@@ -1,0 +1,107 @@
+# Suggested Commit Message
+
+```
+refactor(facts): enforce immutability and type safety with breaking changes
+
+BREAKING CHANGE: Facts API now enforces type-safe access patterns
+
+Changes:
+- Convert Facts from sealed class to sealed record for immutability
+- Remove unsafe methods: indexer, GetFactValue<T>, GetFact, Clone()
+- Retain only safe methods: TryGetFactValue<T>, TryGetFact, TryGetFact<T>
+- Remove Clone() calls from DefaultRulesEngine (Facts is immutable)
+- Update all documentation to reflect API changes
+- Add .github/copilot-instructions.md for AI/developer guidance
+- Add MIGRATION_GUIDE.md for upgrade path
+
+Migration:
+- Replace facts.GetFactValue<T>("name") with facts.TryGetFactValue<T>("name", out var value)
+- Remove facts.Clone() calls (Facts is immutable, use directly)
+- Replace facts["name"] with facts.TryGetFactValue<object>("name", out var value)
+
+Benefits:
+- Type safety: All fact reads explicitly checked
+- No silent failures: TryGet* pattern forces error handling
+- Thread safety: Immutable records are inherently safe
+- Clear intent: Code is explicit about error handling
+
+Files changed:
+- Core: Facts.cs, DefaultRulesEngine.cs
+- Docs: 01-09 defining docs, 10-facts-api.md, FLUENT_API.md
+- New: .github/copilot-instructions.md, MIGRATION_GUIDE.md
+
+See MIGRATION_GUIDE.md for detailed upgrade instructions.
+See VERIFICATION_CHECKLIST.md for complete change verification.
+```
+
+## Alternative Short Version
+
+```
+refactor(facts)!: enforce immutability with type-safe API
+
+BREAKING CHANGE: Remove unsafe methods (GetFactValue, GetFact, indexer, Clone)
+- Convert Facts to sealed record
+- Only TryGet* methods available
+- All docs updated
+
+See MIGRATION_GUIDE.md
+```
+
+## Git Commands Suggestion
+
+```bash
+# Stage all changes
+git add -A
+
+# Commit with the message above
+git commit -F COMMIT_MESSAGE.txt
+
+# Or commit interactively to review each file
+git add -p
+
+# Tag the release
+git tag -a v2.0.0-breaking -m "Breaking: Facts API immutability enforcement"
+```
+
+## Changelog Entry Suggestion
+
+```markdown
+## [2.0.0] - 2026-02-07
+
+### Breaking Changes
+
+- **Facts API**: Converted `Facts` from class to immutable record
+- **Removed Methods**:
+  - `facts[string name]` indexer
+  - `GetFactValue<T>(string name)`
+  - `GetFact(string name)`
+  - `Clone()` method
+- **Migration**: Use `TryGetFactValue<T>`, `TryGetFact`, `TryGetFact<T>` for all fact reads
+
+### Added
+
+- `.github/copilot-instructions.md` - Comprehensive AI/developer guidance
+- `MIGRATION_GUIDE.md` - Detailed upgrade instructions
+- `CHANGES_SUMMARY.md` - Complete change documentation
+- `VERIFICATION_CHECKLIST.md` - Verification of all changes
+
+### Changed
+
+- `DefaultRulesEngine`: Remove Clone() calls (Facts is immutable)
+- All documentation updated to reflect API changes
+- All code examples use safe TryGet* patterns
+
+### Fixed
+
+- Type safety: All fact access now explicitly handles missing/mismatched facts
+- Thread safety: Immutable Facts record is inherently thread-safe
+
+### Documentation
+
+- Updated all 8 documentation files
+- Added migration examples (before/after)
+- Clarified immutability guarantees
+- Added best practices for safe fact access
+
+See `MIGRATION_GUIDE.md` for complete upgrade instructions.
+```

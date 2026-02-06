@@ -6,7 +6,7 @@ namespace LightRules.Core;
 /// <summary>
 /// Thread-safe immutable collection of named facts. All mutation methods return a new Facts instance.
 /// </summary>
-public sealed class Facts : IEnumerable<Fact>
+public sealed record Facts : IEnumerable<Fact>
 {
     private readonly ImmutableDictionary<string, object?> _map;
 
@@ -21,9 +21,24 @@ public sealed class Facts : IEnumerable<Fact>
     }
 
     /// <summary>
-    /// Gets the runtime value of a fact by name (or null if not present).
+    /// Number of facts in the collection.
     /// </summary>
-    public object? this[string name] => GetFactValue<object>(name);
+    public int Count => _map.Count;
+
+
+    /// <summary>
+    ///     Return an enumerator on the set of facts.
+    /// </summary>
+    public IEnumerator<Fact> GetEnumerator()
+    {
+        return _map.Select(kv => new Fact(kv.Key, kv.Value)).GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
 
     /// <summary>
     /// Return a new Facts instance with the given typed fact added or replaced.
@@ -83,19 +98,6 @@ public sealed class Facts : IEnumerable<Fact>
         return RemoveFact(fact.Name);
     }
 
-    /// <summary>
-    /// Get the value of a fact by its name. Returns default(T) if not present.
-    /// Use <see cref="TryGetFactValue{T}"/> for safe access without exceptions on type mismatch.
-    /// </summary>
-    public T? GetFactValue<T>(string factName)
-    {
-        if (string.IsNullOrWhiteSpace(factName)) throw new ArgumentNullException(nameof(factName));
-        if (_map.TryGetValue(factName, out var v))
-        {
-            return (T)v!;
-        }
-        return default;
-    }
 
     /// <summary>
     /// Try to get the value of a fact by its name. Returns true if found and assignable to T.
@@ -110,21 +112,10 @@ public sealed class Facts : IEnumerable<Fact>
             value = t;
             return true;
         }
+
         return false;
     }
 
-    /// <summary>
-    /// Get a Fact object by name. Returns null if not present.
-    /// </summary>
-    public Fact? GetFact(string factName)
-    {
-        if (string.IsNullOrWhiteSpace(factName)) throw new ArgumentNullException(nameof(factName));
-        if (_map.TryGetValue(factName, out var v))
-        {
-            return new Fact(factName, v);
-        }
-        return null;
-    }
 
     /// <summary>
     /// Try to get a Fact object by name.
@@ -138,6 +129,7 @@ public sealed class Facts : IEnumerable<Fact>
             fact = new Fact(factName, v);
             return true;
         }
+
         return false;
     }
 
@@ -154,6 +146,7 @@ public sealed class Facts : IEnumerable<Fact>
             fact = new Fact<T>(factName, t);
             return true;
         }
+
         return false;
     }
 
@@ -163,35 +156,12 @@ public sealed class Facts : IEnumerable<Fact>
     public bool ContainsFact(string factName) => _map.ContainsKey(factName);
 
     /// <summary>
-    /// Number of facts in the collection.
-    /// </summary>
-    public int Count => _map.Count;
-
-    /// <summary>
     /// Return a copy of the facts as a dictionary.
     /// </summary>
     public Dictionary<string, object?> ToDictionary()
     {
         return new Dictionary<string, object?>(_map, StringComparer.Ordinal);
     }
-
-    /// <summary>
-    /// Create a shallow copy of the Facts collection. Since Facts is immutable, returns the same instance.
-    /// </summary>
-    public Facts Clone() => this;
-
-    /// <summary>
-    /// Return an enumerator on the set of facts.
-    /// </summary>
-    public IEnumerator<Fact> GetEnumerator()
-    {
-        foreach (var kv in _map)
-        {
-            yield return new Fact(kv.Key, kv.Value);
-        }
-    }
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     public override string ToString()
     {
